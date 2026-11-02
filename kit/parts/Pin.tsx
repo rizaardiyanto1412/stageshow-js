@@ -1,8 +1,8 @@
-import type { HTMLAttributes } from 'react'
-import { useLook } from '../looks'
+import type { Attrs } from '../jsx-runtime'
+import { look } from '../render'
 import './Pin.css'
 
-export interface PinProps extends HTMLAttributes<HTMLSpanElement> {
+export interface PinProps extends Attrs {
   /** The commenter's initial. */
   name?: string
   src?: string
@@ -22,7 +22,7 @@ export interface PinProps extends HTMLAttributes<HTMLSpanElement> {
  * point, so place that corner on the thing the comment is about.
  */
 export function Pin({ name = '', src, size = 24, corner = 'bl', tone = 'accent', selected, className, style, ...rest }: PinProps) {
-  const { fidelity } = useLook()
+  const { fidelity } = look()
   const plain = fidelity === 'minimal'
   return (
     <span

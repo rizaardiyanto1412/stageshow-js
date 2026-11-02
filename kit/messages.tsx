@@ -1,5 +1,6 @@
-import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactElement, type ReactNode } from 'react'
-import { useLook } from './looks'
+import { Html, type Child, type Style } from './jsx-runtime'
+import { behavior, hold, mark, stillAt } from './render'
+import { look } from './render'
 import { Roll } from './motion/Roll'
 import './messages.css'
 
@@ -8,9 +9,21 @@ import './messages.css'
 // and older messages easing up as new ones arrive. One part for iMessage-style
 // threads and for AI chat, where the reply is plain text with no bubble.
 
-// Whether the thread has finished its first render: bubbles there from the
+// Threads that have finished their first render: bubbles there from the
 // start are the opening picture and don't rise in; only arrivals do
-const Ready = createContext<{ current: boolean }>({ current: true })
+const ready = new WeakSet<Element>()
+
+// A rendered Bubble that remembers its props, so a Thread can give the last
+// bubble of each run its tail
+class BubbleHtml extends Html {
+  constructor(
+    readonly props: BubbleProps,
+    html: string,
+  ) {
+    super(html)
+  }
+}
+const flat = (c: Child): Child[] => (Array.isArray(c) ? c.flatMap(flat) : [c])
 
 // offsetTop rounds to whole pixels. Keep fractional positions through the
 // FLIP, including inside a scaled Phone, or a row steps before its glide starts.
@@ -35,8 +48,8 @@ export interface ThreadProps {
    */
   app?: 'imessage' | 'sms' | 'chat'
   className?: string
-  style?: CSSProperties
-  children?: ReactNode
+  style?: Style
+  children?: Child
 }
 
 /**
@@ -46,53 +59,60 @@ export interface ThreadProps {
  * crop it. Tails go on the last bubble of each run automatically.
  */
 export function Thread({ app = 'imessage', className, style, children }: ThreadProps) {
-  const ref = useRef<HTMLDivElement>(null)
-  const ready = useRef(false)
-  // Where each message is right before this update. Read fresh every time,
-  // not remembered from the last update: CSS motion in between (a receipt
-  // opening, a bubble growing) moves messages without a render, and a stale
-  // position would glide them from somewhere they no longer are
-  const tops = ref.current ? threadTops(ref.current) : new Map<Element, number>()
-  useEffect(() => {
-    ready.current = true
-  }, [])
-  // Glide: every message that moved since the last render starts where it
-  // was and eases to where it is (FLIP), so an arrival pushes the rest up
-  useLayoutEffect(() => {
-    const root = ref.current
-    if (!root) return
-    const next = threadTops(root)
-    for (const [node, top] of Array.from(next)) {
-      const el = node as HTMLElement
-      const was = tops.get(el)
-      if (was === undefined || Math.abs(was - top) < 0.001) continue
-      // Start from where it is on screen: a glide still under way continues
-      // from its current offset instead of jumping back
-      // (by top, on the layer each row keeps, so a bubble's words neither hop
-      // as they land nor step inside the bubble on the way)
-      const now = parseFloat(getComputedStyle(el).top) || 0
-      el.style.transition = 'none'
-      el.style.top = `${was + now - top}px`
-      void el.offsetWidth
-      el.style.transition = ''
-      el.style.top = ''
-    }
-  })
+  behavior('thread', gliding)
   // A tail closes each run: the last bubble before the sender changes
-  const list = Children.toArray(children).filter(isValidElement) as ReactElement<BubbleProps>[]
-  const fromOf = (c: ReactElement<BubbleProps>) => (c.type === Bubble ? c.props.from : null)
-  const out = list.map((c, i) => {
-    if (c.type !== Bubble || c.props.tail !== undefined) return c
-    const next = list.slice(i + 1).find((n) => n.type === Bubble)
-    return cloneElement(c, { tail: !next || fromOf(next) !== c.props.from })
+  const list = flat(children)
+  const bubbles = list.filter((c): c is BubbleHtml => c instanceof BubbleHtml)
+  const out = list.map((c) => {
+    if (!(c instanceof BubbleHtml) || c.props.tail !== undefined) return c
+    const next = bubbles[bubbles.indexOf(c) + 1]
+    return Bubble({ ...c.props, tail: !next || next.props.from !== c.props.from })
   })
   return (
-    <Ready.Provider value={ready}>
-      <div ref={ref} className={`ss-thread${className ? ` ${className}` : ''}`} data-app={app} style={style}>
-        {out}
-      </div>
-    </Ready.Provider>
+    <div className={`ss-thread${className ? ` ${className}` : ''}`} data-ss-part="thread" data-app={app} style={style}>
+      {out}
+    </div>
   )
+}
+
+// Glide: every message that moved since the last render starts where it
+// was and eases to where it is (FLIP), so an arrival pushes the rest up.
+// Where each message is right before an update is read fresh every time,
+// not remembered from the last one: CSS motion in between (a receipt
+// opening, a bubble growing) moves messages without a render, and a stale
+// position would glide them from somewhere they no longer are
+function gliding(root: HTMLElement) {
+  let tops = new Map<Element, number>()
+  let first = true
+  return {
+    morph() {
+      tops = threadTops(root)
+    },
+    update() {
+      if (first) {
+        first = false
+        queueMicrotask(() => ready.add(root))
+        return
+      }
+      const next = threadTops(root)
+      for (const [node, top] of Array.from(next)) {
+        const el = node as HTMLElement
+        const was = tops.get(el)
+        if (was === undefined || Math.abs(was - top) < 0.001) continue
+        // Start from where it is on screen: a glide still under way continues
+        // from its current offset instead of jumping back
+        // (by top, on the layer each row keeps, so a bubble's words neither hop
+        // as they land nor step inside the bubble on the way)
+        const now = parseFloat(getComputedStyle(el).top) || 0
+        el.style.transition = 'none'
+        el.style.top = `${was + now - top}px`
+        void el.offsetWidth
+        el.style.transition = ''
+        el.style.top = ''
+      }
+      tops = new Map()
+    },
+  }
 }
 
 export interface BubbleProps {
@@ -114,12 +134,12 @@ export interface BubbleProps {
    * sits in a white circle on the bubble's bottom corner, and the bubble makes
    * room below so the emoji never covers the words.
    */
-  tapback?: { emoji: ReactNode; show?: boolean }
+  tapback?: { emoji: Child; show?: boolean }
   /** A small `Avatar` beside a received bubble, as a group chat shows who is speaking. */
-  avatar?: ReactNode
+  avatar?: Child
   className?: string
-  style?: CSSProperties
-  children?: ReactNode
+  style?: Style
+  children?: Child
   /** data-target and other data attributes land on the bubble itself. */
   [data: `data-${string}`]: unknown
 }
@@ -130,91 +150,16 @@ export interface BubbleProps {
  * fidelity a string message becomes a bar.
  */
 export function Bubble({ avatar, from, typing = false, tail, source, tapback, className, style, children, ...data }: BubbleProps) {
-  const { fidelity } = useLook()
-  const arrived = useRef(useContext(Ready).current).current
-  const ref = useRef<HTMLDivElement>(null)
-  const size = useRef<{ w: number; h: number } | null>(null)
-  // Whether this bubble grew out of the typing dots (its words fade in as it grows)
-  const wasTyping = useRef(typing)
-  const grew = useRef(false)
-  if (wasTyping.current && !typing) grew.current = true
-  wasTyping.current = typing
-  // Morph: measure the bubble before and after the content changes, then ease
-  // its box from the old size to the new
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const was = size.current
-    el.style.width = ''
-    el.style.height = ''
-    // Resolved CSS dimensions retain the fractions offsetWidth/Height round
-    // away, so releasing the measured box doesn't resize it at the endpoint.
-    const measured = getComputedStyle(el)
-    const now = { w: parseFloat(measured.width), h: parseFloat(measured.height) }
-    size.current = now
-    if (!was || (was.w === now.w && was.h === now.h)) return
-    // The words keep their final line breaks while the box grows around them
-    const text = el.querySelector<HTMLElement>('.ss-bubble__text')
-    if (text) text.style.width = getComputedStyle(text).width
-    el.style.transition = 'none'
-    el.style.width = `${was.w}px`
-    el.style.height = `${was.h}px`
-    void el.offsetWidth
-    el.style.transition = ''
-    el.style.width = `${now.w}px`
-    el.style.height = `${now.h}px`
-    const end = () => {
-      el.style.width = ''
-      el.style.height = ''
-      if (text) text.style.width = ''
-    }
-    el.addEventListener('transitionend', end, { once: true })
-    return () => el.removeEventListener('transitionend', end)
-  }, [typing, children])
-  // Form out of the composer: start where the field's words were, in the
-  // field's color with no fill, and travel into place as the fill comes in
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || !arrived || !source) return
-    const stage = el.closest('.ss-stage') ?? document
-    const src = stage.querySelector<HTMLElement>(`[data-target="${source}"]`) ?? stage.querySelector<HTMLElement>(source)
-    const text = el.querySelector<HTMLElement>('.ss-bubble__text')
-    if (!src || !text) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || el.closest('[data-still]')) return
-    // Measure where it rests, not where an earlier run already moved it
-    el.style.transition = 'none'
-    el.style.left = el.style.top = '0px'
-    const k = el.getBoundingClientRect().width / el.offsetWidth || 1
-    const o = src.getBoundingClientRect()
-    const t = text.getBoundingClientRect()
-    const dx = (o.left - t.left) / k
-    const dy = (o.top + o.height / 2 - (t.top + t.height / 2)) / k
-    const ease = 'cubic-bezier(0.22, 1, 0.36, 1)'
-    // Travels by left and top, so the words land without a sub-pixel hop
-    el.style.transition = 'none'
-    el.style.left = `${dx}px`
-    el.style.top = `${dy}px`
-    el.setAttribute('data-flying', '')
-    el.style.color = getComputedStyle(src).color
-    void el.offsetWidth
-    el.style.transition = `left 0.5s ${ease}, top 0.5s ${ease}, color 0.3s ease 0.06s`
-    el.style.left = el.style.top = ''
-    el.removeAttribute('data-flying')
-    el.style.color = ''
-    const end = (e: TransitionEvent) => {
-      if (e.target !== el || e.propertyName !== 'top') return
-      el.style.transition = ''
-      el.removeEventListener('transitionend', end)
-    }
-    el.addEventListener('transitionend', end)
-    return () => el.removeEventListener('transitionend', end)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const { fidelity } = look()
+  behavior('bubble', bubbling)
   let body = children
   if (fidelity === 'minimal' && typeof children === 'string') body = <span className="ss-bar ss-bubble__bar" style={{ width: Math.min(180, children.length * 5.5) }} />
-  return (
+  return new BubbleHtml(
+    { avatar, from, typing, tail, source, tapback, className, style, children, ...data },
+    (
     <div className={`ss-bubble-row${className ? ` ${className}` : ''}`} data-from={from} data-avatar={avatar ? '' : undefined} style={style}>
       {avatar && from !== 'me' && <span className="ss-bubble__avatar" aria-hidden>{avatar}</span>}
-      <div {...data} ref={ref} className="ss-bubble" data-arrived={arrived || undefined} data-source={source ? '' : undefined} data-tail={tail || undefined} data-typing={typing || undefined} data-grew={grew.current || undefined} data-tapback={tapback && tapback.show !== false ? '' : undefined}>
+      <div {...data} className="ss-bubble" data-ss-part="bubble" data-source={source || undefined} data-tail={tail || undefined} data-typing={typing || undefined} data-tapback={tapback && tapback.show !== false ? '' : undefined}>
         {tapback && (
           <span className="ss-tapback" data-show={tapback.show !== false || undefined} aria-hidden>
             <span className="ss-tapback__emoji">{tapback.emoji}</span>
@@ -236,11 +181,106 @@ export function Bubble({ avatar, from, typing = false, tail, source, tapback, cl
         </svg>
       </div>
     </div>
+    ).html,
   )
 }
 
+// One bubble on the page: whether it arrived after its thread's opening
+// picture, whether it grew out of the typing dots (its words fade in as it
+// grows), and its box easing between sizes when its content changes
+function bubbling(el: HTMLElement) {
+  let size: { w: number; h: number } | null = null
+  let typing = el.hasAttribute('data-typing')
+  let first = true
+  const text = () => el.querySelector<HTMLElement>(':scope > .ss-bubble__text')
+  // Morph: measure the bubble before and after the content changes, then ease
+  // its box from the old size to the new
+  const resize = () => {
+    hold(el, 'width', null)
+    hold(el, 'height', null)
+    // Resolved CSS dimensions retain the fractions offsetWidth/Height round
+    // away, so releasing the measured box doesn't resize it at the endpoint.
+    const measured = getComputedStyle(el)
+    const now = { w: parseFloat(measured.width), h: parseFloat(measured.height) }
+    const was = size
+    size = now
+    if (!was || (was.w === now.w && was.h === now.h)) return
+    // The words keep their final line breaks while the box grows around them
+    const t = text()
+    if (t) hold(t, 'width', getComputedStyle(t).width)
+    el.style.transition = 'none'
+    hold(el, 'width', `${was.w}px`)
+    hold(el, 'height', `${was.h}px`)
+    void el.offsetWidth
+    el.style.transition = ''
+    hold(el, 'width', `${now.w}px`)
+    hold(el, 'height', `${now.h}px`)
+    const end = () => {
+      hold(el, 'width', null)
+      hold(el, 'height', null)
+      hold(text(), 'width', null)
+    }
+    el.addEventListener('transitionend', end, { once: true })
+  }
+  // Form out of the composer: start where the field's words were, in the
+  // field's color with no fill, and travel into place as the fill comes in
+  const fly = () => {
+    const source = el.dataset.source
+    if (!source) return
+    const stage = el.closest('.ss-stage') ?? document
+    const src = stage.querySelector<HTMLElement>(`[data-target="${source}"]`) ?? stage.querySelector<HTMLElement>(source)
+    const t = text()
+    if (!src || !t || stillAt(el)) return
+    // Measure where it rests, not where an earlier run already moved it
+    el.style.transition = 'none'
+    el.style.left = el.style.top = '0px'
+    const k = el.getBoundingClientRect().width / el.offsetWidth || 1
+    const o = src.getBoundingClientRect()
+    const r = t.getBoundingClientRect()
+    const dx = (o.left - r.left) / k
+    const dy = (o.top + o.height / 2 - (r.top + r.height / 2)) / k
+    const ease = 'cubic-bezier(0.22, 1, 0.36, 1)'
+    // Travels by left and top, so the words land without a sub-pixel hop
+    hold(el, 'transition', 'none')
+    hold(el, 'left', `${dx}px`)
+    hold(el, 'top', `${dy}px`)
+    hold(el, 'color', getComputedStyle(src).color)
+    mark(el, 'data-flying')
+    void el.offsetWidth
+    hold(el, 'transition', `left 0.5s ${ease}, top 0.5s ${ease}, color 0.3s ease 0.06s`)
+    hold(el, 'left', null)
+    hold(el, 'top', null)
+    hold(el, 'color', null)
+    mark(el, 'data-flying', null)
+    const end = (e: TransitionEvent) => {
+      if (e.target !== el || e.propertyName !== 'top') return
+      hold(el, 'transition', null)
+      el.removeEventListener('transitionend', end)
+    }
+    el.addEventListener('transitionend', end)
+  }
+  return {
+    morph(next: Element) {
+      const now = next.hasAttribute('data-typing')
+      if (typing && !now) mark(el, 'data-grew')
+      typing = now
+    },
+    update() {
+      if (first) {
+        first = false
+        const thread = el.closest('.ss-thread')
+        if (!thread || ready.has(thread)) {
+          mark(el, 'data-arrived', 'true')
+          fly()
+        }
+      }
+      resize()
+    },
+  }
+}
+
 /** A centered timestamp between runs ("Today 9:41"). */
-export function Stamp({ children, className }: { children: ReactNode; className?: string }) {
+export function Stamp({ children, className }: { children: Child; className?: string }) {
   return <div className={`ss-stamp${className ? ` ${className}` : ''}`}>{children}</div>
 }
 

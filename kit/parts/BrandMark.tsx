@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react'
-import { useLook } from '../looks'
+import type { Style } from '../jsx-runtime'
+import { look } from '../render'
 import { brandMarks, type BrandName, type BrandAsset } from '../brands'
 import './BrandMark.css'
 
@@ -11,7 +11,7 @@ type CommonProps = {
   /** The surface behind the mark. Defaults to the Stage theme. */
   surface?: 'light' | 'dark'
   className?: string
-  style?: CSSProperties
+  style?: Style
 }
 export type BrandMarkProps = CommonProps & (
   | { brand: BrandName; name?: string }
@@ -23,7 +23,7 @@ export type BrandMarkProps = CommonProps & (
  * mark is inset; bare (`tile={false}`, an app header's logo) it fills `size`. A custom
  * name without artwork retains the neutral initial tile. */
 export function BrandMark({ brand, name, src, size = 28, width, tile = true, surface, className, style }: BrandMarkProps) {
-  const { fidelity, theme } = useLook()
+  const { fidelity, theme } = look()
   const asset: BrandAsset | undefined = brand ? brandMarks[brand] : undefined
   const dark = (surface ?? (theme === 'dark' || theme === 'blueprint' ? 'dark' : 'light')) === 'dark'
   const label = name ?? asset?.name ?? ''

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import type { Style } from './jsx-runtime'
+import { behavior, mark } from './render'
 import './ios.css'
 
 // The iOS 27 keyboard, at true points inside a Phone: the Liquid Glass sheet
@@ -22,7 +23,7 @@ export interface KeyboardProps {
   pressed?: string | null
   dark?: boolean
   className?: string
-  style?: CSSProperties
+  style?: Style
 }
 
 function Glyph({ name }: { name: 'shift' | 'shift-on' | 'delete' | 'return' | 'emoji' | 'mic' }) {
@@ -73,23 +74,12 @@ function Glyph({ name }: { name: 'shift' | 'shift-on' | 'delete' | 'return' | 'e
  * composer; pass `typed` and it pops each key as the text grows.
  */
 export function Keyboard({ typed = '', shift, suggestions = ['I', 'The', 'I’m'], pressed, dark, className, style }: KeyboardProps) {
-  // The key that just landed, shown in its callout for a moment
-  const [pop, setPop] = useState<{ ch: string; n: number } | null>(null)
-  const last = useRef(typed)
-  useEffect(() => {
-    const was = last.current
-    last.current = typed
-    if (typed.length <= was.length || !typed.startsWith(was)) return
-    const ch = typed[typed.length - 1].toLowerCase()
-    setPop((p) => ({ ch, n: (p?.n ?? 0) + 1 }))
-    const id = setTimeout(() => setPop(null), 140)
-    return () => clearTimeout(id)
-  }, [typed])
+  behavior('keyboard', popping)
   const auto = typed === '' || /[.!?]\s$/.test(typed)
   const upper = shift ?? auto
-  const down = (k: string) => pressed === k || (k.length === 1 && pop?.ch === k)
+  const down = (k: string) => pressed === k
   return (
-    <div className={`ss-kb${className ? ` ${className}` : ''}`} data-dark={dark || undefined} style={style}>
+    <div className={`ss-kb${className ? ` ${className}` : ''}`} data-ss-part="keyboard" data-typed={typed} data-dark={dark || undefined} style={style}>
       <div className="ss-kb__suggest">
         {suggestions.map((w, i) => (
           <span key={i}>{w}</span>
@@ -103,13 +93,8 @@ export function Keyboard({ typed = '', shift, suggestions = ['I', 'The', 'I’m'
             </span>
           )}
           {row.split('').map((k) => (
-            <span key={k} className="ss-kb__key" data-down={down(k) || undefined}>
+            <span key={k} className="ss-kb__key" data-key={k} data-down={down(k) || undefined}>
               {upper ? k.toUpperCase() : k}
-              {pop?.ch === k && (
-                <span key={pop.n} className="ss-kb__callout" aria-hidden>
-                  {upper ? k.toUpperCase() : k}
-                </span>
-              )}
             </span>
           ))}
           {r === 2 && (
@@ -134,4 +119,44 @@ export function Keyboard({ typed = '', shift, suggestions = ['I', 'The', 'I’m'
       </div>
     </div>
   )
+}
+
+// The key that just landed goes down and shows in its callout for a moment
+function popping(kb: HTMLElement) {
+  let typed = kb.dataset.typed ?? ''
+  let pending = ''
+  let timer = 0
+  let popped: HTMLElement | null = null
+  const lift = () => {
+    clearTimeout(timer)
+    if (!popped) return
+    mark(popped, 'data-down', null)
+    popped.querySelector(':scope > .ss-kb__callout')?.remove()
+    popped = null
+  }
+  return {
+    morph(next: Element) {
+      const was = typed
+      typed = (next as HTMLElement).dataset.typed ?? ''
+      if (typed.length > was.length && typed.startsWith(was)) pending = typed[typed.length - 1].toLowerCase()
+    },
+    update() {
+      if (!pending) return
+      const ch = pending
+      pending = ''
+      lift()
+      const key = kb.querySelector<HTMLElement>(`.ss-kb__key[data-key="${CSS.escape(ch)}"]`)
+      if (!key) return
+      popped = key
+      mark(key, 'data-down', 'true')
+      const callout = document.createElement('span')
+      callout.className = 'ss-kb__callout'
+      callout.setAttribute('aria-hidden', 'true')
+      callout.setAttribute('data-ss-own', '')
+      callout.textContent = key.firstChild?.textContent ?? ch
+      key.append(callout)
+      timer = window.setTimeout(lift, 140)
+    },
+    destroy: lift,
+  }
 }

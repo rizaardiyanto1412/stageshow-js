@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../jsx-runtime'
 import './Meter.css'
 
 /**
@@ -6,7 +6,7 @@ import './Meter.css'
  * recolors the fill (a password meter going danger, warning, success); the
  * color eases as the fill moves.
  */
-export function Meter({ value, tone = 'accent', className, style, ...rest }: { value: number; tone?: 'accent' | 'danger' | 'warning' | 'success' | 'ink'; className?: string; style?: CSSProperties } & Record<`data-${string}`, unknown>) {
+export function Meter({ value, tone = 'accent', className, style, ...rest }: { value: number; tone?: 'accent' | 'danger' | 'warning' | 'success' | 'ink'; className?: string; style?: Style } & Record<`data-${string}`, unknown>) {
   return (
     <span {...rest} className={`ss-meter${className ? ` ${className}` : ''}`} data-tone={tone} style={style}>
       {/* Revealed with clip-path rather than width, so nothing re-lays out and the end stays round */}

@@ -1,8 +1,8 @@
-import type { HTMLAttributes } from 'react'
-import { useLook } from '../looks'
+import type { Attrs } from '../jsx-runtime'
+import { look } from '../render'
 import './Avatar.css'
 
-export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
+export interface AvatarProps extends Attrs {
   /** Its initial. Leave it out (or set `plain`) for a plain disc. */
   name?: string
   /** A plain disc in any fidelity: filler people (assignees, a facepile behind the one that matters), so they don't compete with the named one. */
@@ -26,7 +26,7 @@ const PEOPLE = ['#c98f6e', '#6f9b7d', '#7b86c7', '#c47a9e', '#8c9ab0', '#c2a35a'
 const hue = (name: string) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 9973; return PEOPLE[h % PEOPLE.length] }
 
 export function Avatar({ name = '', plain = false, size = 24, tone = name ? 'person' : 'ink', src, ring, className, style, ...rest }: AvatarProps) {
-  const { fidelity } = useLook()
+  const { fidelity } = look()
   const disc = plain || fidelity === 'minimal'
   const person = tone === 'person' && !disc ? { background: hue(name), color: '#fff' } : undefined
   // iOS monograms carry two initials, first and last name

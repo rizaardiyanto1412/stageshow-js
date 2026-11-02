@@ -1,11 +1,13 @@
 // Components import their own CSS, so no separate style import is required.
-// Which unused styles are removed depends on the host bundler.
+// The export (scripts/export.mjs) bundles only the parts a scene uses.
 // kit/stageshow.css explicitly loads every kit style up front.
 
 // The stage: the canvas, the script, the cursor, measuring and playback
 export { Stage } from './stage'
-export { useLook } from './looks'
-export { useReducedMotion } from './reduced-motion'
+export { mount } from './mount'
+export { look, reduced, uid } from './render'
+export { Html, raw } from './jsx-runtime'
+export type { Child, Style, Attrs } from './jsx-runtime'
 export { inset, box, between, contains } from './measure'
 export type { StageProps, Play, LookTokens } from './stage'
 export type { Act, Script } from './act'

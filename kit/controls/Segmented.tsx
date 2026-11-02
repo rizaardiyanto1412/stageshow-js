@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { Child, Style } from '../jsx-runtime'
 import type { CursorKind } from '../cursor'
 import './Segmented.css'
 
@@ -7,7 +7,7 @@ import './Segmented.css'
  * chosen one. `targets` names each segment for the cursor; `cursor` is the
  * pointer it shows over them (hand, pointer).
  */
-export function Segmented({ items, value, targets, cursor, className, style, ...rest }: { items: ReactNode[]; value: number; targets?: (string | undefined)[]; cursor?: CursorKind; className?: string; style?: CSSProperties } & Record<`data-${string}`, unknown>) {
+export function Segmented({ items, value, targets, cursor, className, style, ...rest }: { items: Child[]; value: number; targets?: (string | undefined)[]; cursor?: CursorKind; className?: string; style?: Style } & Record<`data-${string}`, unknown>) {
   return (
     <div {...rest} className={`ss-seg${className ? ` ${className}` : ''}`} style={{ ['--n' as string]: items.length, ...style }}>
       <span className="ss-seg__thumb" style={{ transform: `translateX(${value * 100}%)` }} />

@@ -1,3 +1,5 @@
+import { hold } from './render'
+
 // Measuring: where things are, in stage pixels. Targets and rects for the
 // script API, the drawn scale that turns screen pixels into stage pixels,
 // and the rect helpers demos use to place overlays from measured targets.
@@ -117,6 +119,6 @@ export function thumb(el: HTMLElement) {
   const total = el.scrollHeight
   const size = total > h ? Math.max(24, (h / total) * h) : 0
   const y = total > h ? (el.scrollTop / (total - h)) * (h - size) : 0
-  wrap.style.setProperty('--ss-thumb-h', `${size}px`)
-  wrap.style.setProperty('--ss-thumb-y', `${y}px`)
+  hold(wrap, '--ss-thumb-h', `${size}px`)
+  hold(wrap, '--ss-thumb-y', `${y}px`)
 }

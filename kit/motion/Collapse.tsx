@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react'
+import type { Attrs, Child } from '../jsx-runtime'
+import { behavior, mark } from '../render'
 import './Collapse.css'
 
 /**
@@ -10,7 +11,7 @@ import './Collapse.css'
  * padding. The inner box is a deliberate crop (film.mjs skips it) and clips
  * 3px wide, so rings and shadows on the content aren't shaved.
  */
-export function Collapse({ open, reveal = 'clip', from = 'above', solid = false, children, className, ...rest }: HTMLAttributes<HTMLDivElement> & {
+export function Collapse({ open, reveal = 'clip', from = 'above', solid = false, children, className, ...rest }: Attrs & {
   open: boolean
   /**
    * clip: the opening space uncovers the content, for rows and text. The
@@ -28,42 +29,55 @@ export function Collapse({ open, reveal = 'clip', from = 'above', solid = false,
    * from the first frame: open it with what it shows, never empty.
    */
   solid?: boolean
-  children: ReactNode
+  children: Child
 }) {
-  // Marked moving from the frame open changes until the height settles
-  const [moving, setMoving] = useState(false)
-  // Taller than a row: unfolding from the middle would cut its first line
-  // while it's already visible, so it reveals from the top and fades in late
-  const [tall, setTall] = useState(false)
-  const inner = useRef<HTMLDivElement>(null)
-  const first = useRef(true)
-  useLayoutEffect(() => {
-    const h = inner.current?.scrollHeight ?? 0
-    if (h) setTall(h > 44)
-    if (first.current) return void (first.current = false)
-    setMoving(true)
-    // No transitionend without a transition (reduced motion): never leave it moving
-    const t = setTimeout(() => setMoving(false), 900)
-    return () => clearTimeout(t)
-  }, [open])
+  behavior('collapse', collapsing)
   return (
     <div
       {...rest}
       className={`ss-collapse${className ? ` ${className}` : ''}`}
+      data-ss-part="collapse"
       data-open={open || undefined}
       data-reveal={reveal}
       data-solid={solid || undefined}
       data-from={reveal === 'drop' ? from : undefined}
-      data-moving={moving || undefined}
-      data-tall={tall || undefined}
-      onTransitionEnd={(e) => {
-        if (e.target === e.currentTarget && e.propertyName === 'grid-template-rows') setMoving(false)
-        rest.onTransitionEnd?.(e)
-      }}
     >
-      <div ref={inner} className="ss-collapse__inner" data-crop={reveal === 'clip' || undefined}>
+      <div className="ss-collapse__inner" data-crop={reveal === 'clip' || undefined}>
         {children}
       </div>
     </div>
   )
+}
+
+// Marked moving from the render that changes open until the height settles,
+// and tall when the content is taller than a row: unfolding from the middle
+// would cut its first line while it's already visible, so it reveals from
+// the top and fades in late
+function collapsing(el: HTMLElement) {
+  let open = el.hasAttribute('data-open')
+  let timer = 0
+  const settled = (e: TransitionEvent) => {
+    if (e.target === el && e.propertyName === 'grid-template-rows') mark(el, 'data-moving', null)
+  }
+  el.addEventListener('transitionend', settled)
+  return {
+    morph(next: Element) {
+      const now = next.hasAttribute('data-open')
+      if (now === open) return
+      open = now
+      mark(el, 'data-moving')
+      next.setAttribute('data-moving', '')
+      // No transitionend without a transition (reduced motion): never leave it moving
+      clearTimeout(timer)
+      timer = window.setTimeout(() => mark(el, 'data-moving', null), 900)
+    },
+    update() {
+      const h = el.firstElementChild?.scrollHeight ?? 0
+      if (h) mark(el, 'data-tall', h > 44)
+    },
+    destroy() {
+      clearTimeout(timer)
+      el.removeEventListener('transitionend', settled)
+    },
+  }
 }

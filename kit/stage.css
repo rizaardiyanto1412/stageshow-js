@@ -446,3 +446,13 @@
 :where(.ss-stage :is(.ss-fly__lift, .ss-expand__face)) > :is(svg, img):not(html):not(body):not(head) {
   max-width: 100%;
 }
+
+@layer stageshow {
+  /* The scene and the layer over it (keycaps, the cursor) are each patched on
+     their own; neither draws a box, so the scene's parts are placed on the
+     stage exactly as if they were its own children */
+  .ss-scene,
+  .ss-overlay {
+    display: contents;
+  }
+}

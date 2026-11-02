@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../jsx-runtime'
 import './Stream.css'
 
 /**
@@ -8,7 +8,7 @@ import './Stream.css'
  * highlights words (what changed in a rewrite), and neighboring marked words
  * join into one run; return false for all to fade the marks away.
  */
-export function Stream({ text, count, mark, className, style, ...rest }: { text: string; count: number; mark?: (word: string, i: number) => boolean; className?: string; style?: CSSProperties } & Record<`data-${string}`, unknown>) {
+export function Stream({ text, count, mark, className, style, ...rest }: { text: string; count: number; mark?: (word: string, i: number) => boolean; className?: string; style?: Style } & Record<`data-${string}`, unknown>) {
   const words = text.split(' ')
   const marked = words.map((w, i) => !!mark?.(w, i))
   return (

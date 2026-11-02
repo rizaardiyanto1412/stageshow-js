@@ -1,18 +1,18 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
+import type { Attrs, Child, Style } from '../jsx-runtime'
 import { Bar } from '../window'
 import './Row.css'
 
-export interface RowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
+export interface RowProps extends Omit<Attrs, 'title'> {
   /** The disc on the left: an `Avatar`, an icon tile, a thumbnail. */
-  lead?: ReactNode
+  lead?: Child
   /** The first line: a name, a title. A `Text` or a `Bar`. */
-  title: ReactNode
+  title: Child
   /** The second line: a preview, a description. A `Text` or a `Bar`. */
-  subtitle?: ReactNode
+  subtitle?: Child
   /** Trailing detail on the first line: a time, a count, a badge. */
-  meta?: ReactNode
+  meta?: Child
   /** Preview lines under the subtitle: bar widths in px for placeholder (Mail's two-line preview: `[220, 150]`), or the real text. */
-  preview?: number[] | ReactNode
+  preview?: number[] | Child
   /** An unread dot hanging in the margin left of the lead; the row never moves. */
   unread?: boolean
   selected?: boolean
@@ -41,7 +41,7 @@ export function Row({ lead, title, subtitle, meta, preview, unread, selected, pa
       data-selected={selected || undefined}
       data-unread={unread || undefined}
       data-lead={lead ? '' : undefined}
-      style={{ '--ss-row-pad': `${pad}px`, ...style } as CSSProperties}
+      style={{ '--ss-row-pad': `${pad}px`, ...style } as Style}
     >
       {unread && <span className="ss-row__dot" aria-hidden />}
       {lead && <span className="ss-row__lead">{lead}</span>}
@@ -55,7 +55,7 @@ export function Row({ lead, title, subtitle, meta, preview, unread, selected, pa
       {preview && (
         Array.isArray(preview) && preview.every((w) => typeof w === 'number') ? (
           <span className="ss-row__preview" aria-hidden>
-            {preview.map((w, i) => <Bar key={i} w={w} h={6} tone={2} />)}
+            {(preview as number[]).map((w, i) => <Bar key={i} w={w} h={6} tone={2} />)}
           </span>
         ) : (
           <span className="ss-row__preview" data-text>{preview}</span>

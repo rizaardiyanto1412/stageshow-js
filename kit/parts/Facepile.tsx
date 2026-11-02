@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../jsx-runtime'
 import { Avatar, type AvatarProps } from './Avatar'
 import './Facepile.css'
 
@@ -9,7 +9,7 @@ import './Facepile.css'
  * Each face takes a muted color of its own (`tone="person"`), so three gray
  * discs with sliced letters never read as one blob.
  */
-export function Facepile({ names, size = 22, overlap = 6, gap = 2, tones, className, style, ...rest }: { names: string[]; size?: number; overlap?: number; gap?: number; tones?: AvatarProps['tone'][]; className?: string; style?: CSSProperties } & Record<`data-${string}`, unknown>) {
+export function Facepile({ names, size = 22, overlap = 6, gap = 2, tones, className, style, ...rest }: { names: string[]; size?: number; overlap?: number; gap?: number; tones?: AvatarProps['tone'][]; className?: string; style?: Style } & Record<`data-${string}`, unknown>) {
   const r = size / 2
   // Center of the next avatar, measured from this one's left edge
   const next = size - overlap + r

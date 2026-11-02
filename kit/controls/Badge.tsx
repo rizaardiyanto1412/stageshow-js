@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { Attrs, Child } from '../jsx-runtime'
 import './Badge.css'
 
 /**
@@ -6,7 +6,7 @@ import './Badge.css'
  * a glyph there instead (a tick on Matched), beside the label rather than in
  * it, so the label's trimmed box still centers the words on their ink.
  */
-export function Badge({ tone = 'neutral', dot, icon, children, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { tone?: 'neutral' | 'accent' | 'success' | 'danger' | 'warning'; dot?: boolean; icon?: ReactNode }) {
+export function Badge({ tone = 'neutral', dot, icon, children, className, ...rest }: Attrs & { tone?: 'neutral' | 'accent' | 'success' | 'danger' | 'warning'; dot?: boolean; icon?: Child }) {
   return (
     <span {...rest} className={`ss-badge${className ? ` ${className}` : ''}`} data-tone={tone} data-lead={dot || icon ? '' : undefined}>
       {dot && <span className="ss-badge__dot" />}

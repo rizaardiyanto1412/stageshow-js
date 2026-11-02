@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from 'react'
+import type { Html } from './jsx-runtime'
 import { MacCrosshair, MacGrab, MacIbeam, MacOpenHand, MacPointer, MacPointingHand, MacResizeEW, MacResizeNESW, MacResizeNS, MacResizeNWSE, MacWait } from './cursors'
 import type { Point } from './measure'
 import './cursor.css'
@@ -22,7 +22,7 @@ export type CursorKind = 'pointer' | 'ibeam' | 'crosshair' | 'hand' | 'open' | '
  */
 export type CursorStyle = 'real' | 'large' | 'circle' | 'touch' | 'arrow'
 
-const GLYPHS: Record<CursorKind, () => ReactNode> = {
+const GLYPHS: Record<CursorKind, () => Html> = {
   pointer: MacPointer,
   ibeam: MacIbeam,
   crosshair: MacCrosshair,
@@ -61,10 +61,10 @@ function SolidArrow() {
   )
 }
 
-/** The cursor element. The stage moves it (a transform on cursorRef) and marks it pressed or idle. */
-export function Cursor({ cursorRef, style = 'real', kind }: { cursorRef: Ref<HTMLDivElement>; style?: CursorStyle; kind: CursorKind }) {
+/** The cursor element. The stage moves it (a transform) and marks it pressed or idle. */
+export function Cursor({ style = 'real', kind }: { style?: CursorStyle; kind: CursorKind }) {
   return (
-    <div ref={cursorRef} className="ss-cursor" data-style={style} data-kind={kind} aria-hidden>
+    <div className="ss-cursor" data-style={style} data-kind={kind} aria-hidden>
       {style === 'touch' && <span className="ss-cursor__streak" />}
       <div className="ss-cursor__press">
         {(style === 'circle' || style === 'touch') && <span className="ss-cursor__dot" />}

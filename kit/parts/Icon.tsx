@@ -1,6 +1,6 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../jsx-runtime'
 import './Icon.css'
-import { Archive, ArrowRight, ArrowUpRight, Bell, Calendar, Check, ChevronDown, ChevronRight, Clock, CreditCard, Ellipsis, File, Globe, GripVertical, Heart, House, Lock, Mail, Pause, Play, Plus, ScanFace, Search, Send, Settings, Star, Trash2, User, Wifi, X, Zap } from 'lucide-react'
+import { Archive, ArrowRight, ArrowUpRight, Bell, Calendar, Check, ChevronDown, ChevronRight, Clock, CreditCard, Ellipsis, File, Globe, GripVertical, Heart, House, Lock, Mail, Pause, Play, Plus, ScanFace, Search, Send, Settings, Star, Trash2, User, Wifi, X, Zap } from '../icons'
 
 // Glyphs come from lucide, one family at one construction, so a row of icons
 // shares a weight. Two card-specific drawings (a chip, contactless arcs) stay
@@ -46,7 +46,7 @@ const FILLED: Partial<Record<IconName, string>> = {
  * better at 14px and under and inside tinted tiles. These cover basics only:
  * use the product's own icon pack for the rest.
  */
-export function Icon({ name, size = 16, stroke = 1.5, filled, className, style }: { name: IconName; size?: number; stroke?: number; filled?: boolean; className?: string; style?: CSSProperties }) {
+export function Icon({ name, size = 16, stroke = 1.5, filled, className, style }: { name: IconName; size?: number; stroke?: number; filled?: boolean; className?: string; style?: Style }) {
   const solid = filled ? FILLED[name] : undefined
   const cls = `ss-icon${className ? ` ${className}` : ''}`
   if (!solid && name in LUCIDE) {

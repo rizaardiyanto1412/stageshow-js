@@ -1,5 +1,5 @@
-import { type CSSProperties, type HTMLAttributes, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { useLook } from './looks'
+import type { Attrs, Child, Style } from './jsx-runtime'
+import { look, uid } from './render'
 import './phone.css'
 
 // An iPhone drawn from the real geometry, the iPhone 18 Pro in points, as
@@ -85,7 +85,7 @@ function superellipsePath(w: number, h: number, a: number, n: number) {
   return `M${pts.join('L')}Z`
 }
 
-export interface PhoneProps extends HTMLAttributes<HTMLDivElement> {
+export interface PhoneProps extends Attrs {
   /** Outer width in px. Height follows the real proportions. */
   width: number
   frame?: PhoneFrame
@@ -99,36 +99,20 @@ export interface PhoneProps extends HTMLAttributes<HTMLDivElement> {
   dark?: boolean
   /** Any CSS background for the screen: a color, gradient or image. The screen is white by default, black with `dark`. */
   wallpaper?: string
-  children?: ReactNode
+  children?: Child
 }
 
 export function Phone({ width, frame: asked = 'pro', time = '9:41', island, status, dark, wallpaper, className, style, children, ...rest }: PhoneProps) {
-  // The photo frame uses a caller-provided bezel. Without a configured image,
-  // or if it fails to load, the phone draws the pro frame
-  // instead of standing as an empty shell
-  const photoRef = useRef<HTMLSpanElement>(null)
-  const [photoOk, setPhotoOk] = useState(true)
-  useEffect(() => {
-    if (asked !== 'photo' || !photoRef.current) return
-    const bg = getComputedStyle(photoRef.current).backgroundImage
-    const url = bg.match(/url\(["']?([^"')]+)["']?\)/)?.[1]
-    if (!url) return void setPhotoOk(false)
-    let live = true
-    const img = new Image()
-    img.onerror = () => live && setPhotoOk(false)
-    img.src = url
-    return () => {
-      live = false
-    }
-  }, [asked, dark])
-  const frame: PhoneFrame = asked === 'photo' && !photoOk ? 'pro' : asked
+  // The photo frame draws a caller-provided bezel image (--ss-phone-photo-light
+  // and -dark); without one it is an empty shell, so set it before using it
+  const frame: PhoneFrame = asked
   const { band, glass } = FRAMES[frame]
-  const { fidelity } = useLook()
+  const { fidelity } = look()
   const SCREEN = frame === 'android' ? PIXEL : frame === 'soft' ? SOFT : IPHONE
   const edge = band + glass
   const s = width / (SCREEN.w + edge * 2)
   const pt = (n: number) => n * s
-  const id = useId().replace(/:/g, '')
+  const id = `ss-phone-${uid()}`
   const ios = frame !== 'android' && frame !== 'soft'
   const outline = ios ? superellipsePath(pt(SCREEN.w), pt(SCREEN.h), pt(CORNER.a), CORNER.n) : null
   const bands = BANDS[frame]
@@ -204,7 +188,7 @@ export function Phone({ width, frame: asked = 'pro', time = '9:41', island, stat
         >
           <div
             className="ss-phone__screen"
-            style={{ width: SCREEN.w, height: SCREEN.h, transform: `scale(${s})`, ['--ss-screen-r' as string]: `${SCREEN.r}px`, ...(wallpaper ? ({ background: wallpaper } as CSSProperties) : null) }}
+            style={{ width: SCREEN.w, height: SCREEN.h, transform: `scale(${s})`, ['--ss-screen-r' as string]: `${SCREEN.r}px`, ...(wallpaper ? ({ background: wallpaper } as Style) : null) }}
           >
             {showStatus && (
               <div className="ss-phone__status">
@@ -227,13 +211,13 @@ export function Phone({ width, frame: asked = 'pro', time = '9:41', island, stat
       {frame === 'photo' && (
         // The bezel image is 450 × 920pt with the screen at (24, 23): laid over
         // the body so its cut-out frames the screen exactly
-        <span ref={photoRef} className="ss-phone__photo" style={{ left: pt(-8), top: pt(-7), width: pt(450), height: pt(920) }} />
+        <span className="ss-phone__photo" style={{ left: pt(-8), top: pt(-7), width: pt(450), height: pt(920) }} />
       )}
     </div>
   )
 }
 
-export interface LockScreenProps extends HTMLAttributes<HTMLDivElement> {
+export interface LockScreenProps extends Attrs {
   date?: string
   time?: string
   /** The flashlight and camera buttons at the bottom. */
@@ -251,7 +235,7 @@ export interface LockScreenProps extends HTMLAttributes<HTMLDivElement> {
   /** The date and clock. Off for a crop that shows only the notifications. */
   clock?: boolean
   /** Notifications. They stack at the bottom of the screen, as iOS does. */
-  children?: ReactNode
+  children?: Child
 }
 
 /** The default lock screen wallpaper: a soft blue to lilac gradient with a
@@ -295,10 +279,10 @@ export function LockScreen({ date = 'Tuesday, October 21', time = '9:41', contro
   )
 }
 
-export interface NotificationProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
-  icon?: ReactNode
-  title: ReactNode
-  body?: ReactNode
+export interface NotificationProps extends Omit<Attrs, 'title'> {
+  icon?: Child
+  title: Child
+  body?: Child
   time?: string
   /** Where it shows. Leave it out on a LockScreen, which stacks notifications
    * at the bottom as iOS does. banner: the phone is unlocked (in an app or on
@@ -314,9 +298,8 @@ export interface NotificationProps extends Omit<HTMLAttributes<HTMLDivElement>, 
  * cropped at a side is composed so the banner shows whole.
  */
 export function Notification({ icon, title, body, time = 'now', banner, className, ...rest }: NotificationProps) {
-  const el = useRef<HTMLDivElement>(null)
   return (
-    <div {...rest} ref={el} className={`ss-notification${className ? ` ${className}` : ''}`} data-banner={banner || undefined}>
+    <div {...rest} className={`ss-notification${className ? ` ${className}` : ''}`} data-banner={banner || undefined}>
       <span className="ss-notification__icon">{icon}</span>
       <span className="ss-notification__text">
         <span className="ss-notification__head">

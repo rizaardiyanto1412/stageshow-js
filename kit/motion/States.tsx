@@ -1,5 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react'
-import { useReducedMotion } from '../reduced-motion'
+import type { Child, Style } from '../jsx-runtime'
+import { reduced as reducedMotion } from '../render'
 import './States.css'
 
 /**
@@ -15,8 +15,8 @@ import './States.css'
  * button's "Sending" then "Sent"): the held box leaves the shorter word off
  * center. Use `Swap` there, so the group re-centers as the label changes.
  */
-export function States<K extends string>({ value, states, align = 'center', className, style, ...rest }: { value: K; states: Record<K, ReactNode>; /** Where a smaller state sits in the box: start for text in a row, center for a button's label, end for a right-aligned value. */ align?: 'start' | 'center' | 'end'; className?: string; style?: CSSProperties } & Record<`data-${string}`, unknown>) {
-  const reduced = useReducedMotion()
+export function States<K extends string>({ value, states, align = 'center', className, style, ...rest }: { value: K; states: Record<K, Child>; /** Where a smaller state sits in the box: start for text in a row, center for a button's label, end for a right-aligned value. */ align?: 'start' | 'center' | 'end'; className?: string; style?: Style } & Record<`data-${string}`, unknown>) {
+  const reduced = reducedMotion()
   return (
     <span {...rest} className={`ss-states${className ? ` ${className}` : ''}`} data-align={align} data-reduced={reduced || undefined} style={style}>
       {(Object.keys(states) as K[]).map((k) => (

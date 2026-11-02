@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react'
+import type { Attrs } from '../jsx-runtime'
 import './Slot.css'
 
 /**
@@ -7,7 +7,7 @@ import './Slot.css'
  * opens (dashed) where it will land, and the card drops into it. `gap` is the
  * list's own gap, so a closed slot takes no space at all.
  */
-export function Slot({ open, height, gap = 0, dashed, className, style, children, ...rest }: HTMLAttributes<HTMLDivElement> & { open: boolean; height: number; gap?: number; dashed?: boolean }) {
+export function Slot({ open, height, gap = 0, dashed, className, style, children, ...rest }: Attrs & { open: boolean; height: number; gap?: number; dashed?: boolean }) {
   return (
     <div
       {...rest}

@@ -1,8 +1,6 @@
-import { createContext, useContext } from 'react'
-
 // The look a stage sets for everything inside it: theme, palette, fidelity,
-// and which of its designs (wide or compact) is showing. <Stage> provides it;
-// parts read it with useLook().
+// and which of its designs (wide or compact) is showing. Parts read it with
+// look() from render.ts while they render.
 
 /** glass: frosted, translucent surfaces over a soft color field. */
 export type Theme = 'light' | 'dark' | 'blueprint' | 'glass'
@@ -11,13 +9,3 @@ export type Palette = 'accent' | 'mono'
 export type Fidelity = 'minimal' | 'standard' | 'realistic'
 /** wide: the design size. compact: the smaller design used below `compact.below`. */
 export type Layout = 'wide' | 'compact'
-
-export type Look = { theme: Theme; palette: Palette; fidelity: Fidelity; layout: Layout }
-
-export const LookContext = createContext<Look>({
-  theme: 'light',
-  palette: 'accent',
-  fidelity: 'standard',
-  layout: 'wide',
-})
-export const useLook = () => useContext(LookContext)

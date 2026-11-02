@@ -1,21 +1,21 @@
-import type { HTMLAttributes, ReactNode } from 'react'
-import { useLook } from './looks'
+import type { Attrs, Child } from './jsx-runtime'
+import { look } from './render'
 import './window.css'
 
-export interface WindowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
+export interface WindowProps extends Omit<Attrs, 'title'> {
   /** The address. A string, or any node: roll just the path with `<>site.app/<Roll>{path}</Roll></>`. */
-  url?: ReactNode
+  url?: Child
   /** Browser: the address field's shape. `pill` for the round field of current Safari and Chrome. */
   urlShape?: 'rounded' | 'pill'
   /** Browser: tab titles above the address bar; the first is the active tab. */
   /** Tab titles. A title that changes should animate the part that changed, so pass a node */
-  tabs?: ReactNode[]
+  tabs?: Child[]
   /** Browser: back and forward buttons before the address. */
   nav?: boolean
   /** App: the window title. Centered in a plain title bar; with a `toolbar`, left-aligned 14px after the lights (a unified toolbar) with the toolbar on the right; beside a sidebar, the content column's heading at its 16px inset. */
   title?: string
   /** App: a full-height sidebar. The traffic lights sit in its top, the way Mail, Notes, Linear and Slack do it. */
-  sidebar?: ReactNode
+  sidebar?: Child
   /** The sidebar's width in px. */
   sidebarWidth?: number
   /** The sidebar's shape. `flush` (the default) runs edge to edge with a rule
@@ -25,11 +25,11 @@ export interface WindowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title
    * in the panel's top, where the bar's controls are level with them. */
   sidebarStyle?: 'flush' | 'floating'
   /** Controls on the right of the bar (toolbar buttons, avatars, a share button). */
-  toolbar?: ReactNode
+  toolbar?: Child
   /** Controls on the left of the bar, after the title (a breadcrumb, a filter, view tabs). */
-  lead?: ReactNode
+  lead?: Child
   /** Props for the content column (data-crop, a class), which sits inside the window's own clip. */
-  body?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, unknown>
+  body?: Attrs & Record<`data-${string}`, unknown>
   /** Fades the window to 40%, so a window in front of it reads as the subject. */
   receded?: boolean
   /** The chrome's material. `native` is macOS (the default). `glass` is a frosted
@@ -57,7 +57,7 @@ export interface WindowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title
    * the lights level with the controls (centered 26px down). Only for a
    * product whose real toolbar is that tall. Native chrome only. */
   barSize?: 'standard' | 'tall'
-  children?: ReactNode
+  children?: Child
 }
 
 /** The traffic lights. Every chrome puts them in the same spot: centered in the top 38px, 12px in. */
@@ -202,7 +202,7 @@ export function Window({ url, urlShape, tabs, nav, title, sidebar, sidebarWidth 
 
 const INK = ['var(--ss-ink-1)', 'var(--ss-ink-2)', 'var(--ss-ink-3)', 'var(--ss-ink-4)', 'var(--ss-ink-5)']
 
-export interface BarProps extends HTMLAttributes<HTMLSpanElement> {
+export interface BarProps extends Attrs {
   w: number | string
   h?: number
   /** 1 (faintest) to 5 */
@@ -221,7 +221,7 @@ export function Bar({ w, h = 6, tone = 3, r = 2, shrink, className, style, ...re
   return <span {...rest} className={`ss-bar${className ? ` ${className}` : ''}`} data-shrink={gives || undefined} style={{ width: w, height: h, borderRadius: r, background: INK[tone - 1], ...style }} />
 }
 
-export interface TextProps extends HTMLAttributes<HTMLSpanElement> {
+export interface TextProps extends Attrs {
   children: string
   /** Filler: the words show only at `realistic` fidelity; at `standard` and `minimal` the line is a bar of about the same width. Write the real copy once and let the stage's fidelity decide. */
   filler?: boolean
@@ -238,7 +238,7 @@ export interface TextProps extends HTMLAttributes<HTMLSpanElement> {
  * the same width in minimal. Write real copy once and every look follows.
  */
 export function Text({ children, w, h = 6, tone = 3, wrap, filler, className, style, ...rest }: TextProps) {
-  const { fidelity } = useLook()
+  const { fidelity } = look()
   if (fidelity === 'minimal' || (filler && fidelity !== 'realistic')) {
     const size = typeof style?.fontSize === 'number' ? style.fontSize : 11
     return <Bar {...rest} w={w ?? Math.round(children.length * size * 0.52)} h={h} tone={tone} className={className} />
@@ -250,11 +250,11 @@ export function Text({ children, w, h = 6, tone = 3, wrap, filler, className, st
   )
 }
 
-export interface PromptProps extends HTMLAttributes<HTMLDivElement> {
+export interface PromptProps extends Attrs {
   /** The working directory shown before the prompt. */
   path?: string
   /** What was typed. A string, or a node (a typed string, a Caret after it). */
-  children?: ReactNode
+  children?: Child
 }
 
 /** A terminal command line: a dim path, the prompt mark, and the command

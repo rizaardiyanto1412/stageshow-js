@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import type { Child, Style } from './jsx-runtime'
+import { behavior, mark } from './render'
 import './code.css'
 
 // Code as the subject: real lines in a monospace block with line numbers,
@@ -15,8 +16,8 @@ export interface CodeLine {
 const KEYWORDS = /^(const|let|var|function|return|if|else|await|async|import|from|export|default|new|true|false|null|undefined|for|of|in|while|try|catch|throw|class|extends|type|interface|def|self|None|True|False)$/
 
 /** A light tokenizer: comments, strings, numbers, keywords, function calls. */
-function tokens(line: string): ReactNode[] {
-  const out: ReactNode[] = []
+function tokens(line: string): Child[] {
+  const out: Child[] = []
   const re = /(\/\/.*$|#.*$)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|(\b\d[\d._]*\b)|([A-Za-z_$][\w$]*)(?=\s*\()|([A-Za-z_$][\w$]*)/g
   let last = 0
   let m: RegExpExecArray | null
@@ -37,22 +38,17 @@ function tokens(line: string): ReactNode[] {
  * hidden, so a block can stream in (a build log, a generated function) without
  * anything reflowing. Diff lines get a tint and a + or − in the gutter.
  */
-export function Code({ lines, start = 1, numbers = true, count, highlight = true, className, style }: { lines: (CodeLine | string)[]; start?: number; numbers?: boolean; count?: number; highlight?: boolean; className?: string; style?: CSSProperties }) {
+export function Code({ lines, start = 1, numbers = true, count, highlight = true, className, style }: { lines: (CodeLine | string)[]; start?: number; numbers?: boolean; count?: number; highlight?: boolean; className?: string; style?: Style }) {
   let n = start
   // Only lines that really run past the block fade at the edge
-  const ref = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const mark = () =>
-      ref.current?.querySelectorAll<HTMLElement>('.ss-code__text').forEach((t) => {
-        t.toggleAttribute('data-over', t.scrollWidth > t.clientWidth + 1)
-      })
-    mark()
-    const ro = new ResizeObserver(mark)
-    if (ref.current) ro.observe(ref.current)
-    return () => ro.disconnect()
+  behavior('code', (block) => {
+    const over = () => block.querySelectorAll<HTMLElement>('.ss-code__text').forEach((t) => mark(t, 'data-over', t.scrollWidth > t.clientWidth + 1))
+    const ro = new ResizeObserver(over)
+    ro.observe(block)
+    return { update: over, destroy: () => ro.disconnect() }
   })
   return (
-    <div ref={ref} className={`ss-code${className ? ` ${className}` : ''}`} style={style}>
+    <div className={`ss-code${className ? ` ${className}` : ''}`} data-ss-part="code" style={style}>
       {lines.map((raw, i) => {
         const line = typeof raw === 'string' ? { text: raw } : raw
         // A removed line keeps the old number; the line after it reuses it

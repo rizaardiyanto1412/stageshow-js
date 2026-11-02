@@ -1,14 +1,13 @@
-import { flushSync } from 'react-dom'
-import type { Dispatch, SetStateAction } from 'react'
 import type { CursorKind } from './cursor'
 import { capsOf, type Keys } from './keys'
+import { hold, mark } from './render'
 import type { Layout } from './looks'
 import { EMPTY, drawnScale, nameOf, layoutRectOf, rectOf, thumb, type Point, type Rect, type Target } from './measure'
 import { bezier } from './ease'
 import { clamp, easeInOutCubic, hash, warn } from './util'
 
 // The touch dot lingers a beat after a lift, then goes
-const fingerGone = (el: HTMLElement | null | undefined) => { if (!el) return; window.setTimeout(() => el.removeAttribute('data-touching'), 240) }
+const fingerGone = (el: HTMLElement | null | undefined) => { if (!el) return; window.setTimeout(() => mark(el, 'data-touching', null), 240) }
 
 // The script API: the act a demo's script is handed each run. It drives the
 // scene state and the cursor, measures targets, and stops the moment its
@@ -107,37 +106,38 @@ export type Script<S> = (act: Act<S>) => Promise<void>
 
 export class Stopped extends Error {}
 
-type Ref<T> = { current: T }
-
-/** What an act works with: the stage's elements, refs and setters, read when the act is made. */
-export interface ActEnv<S> {
-  rootRef: { readonly current: HTMLDivElement | null }
-  cursorRef: { readonly current: HTMLDivElement | null }
-  pos: Ref<Point>
-  hovered: Ref<Element | null>
-  kindRef: Ref<CursorKind>
-  keysRef: Ref<Keys>
-  dragging: Ref<boolean>
-  autoUsed: Ref<boolean>
-  autoRef: Ref<((p: Point) => void) | null>
-  scaleRef: Ref<number>
-  speed: number
-  layout: Layout
-  cursor?: { ripple?: boolean; style?: string }
-  resolve: (t: Target) => Point
-  place: (p: Point) => void
-  remeasure: () => void
-  ripple: (at: Point) => void
-  setState: Dispatch<SetStateAction<S>>
-  setKind: Dispatch<SetStateAction<CursorKind>>
-  setKeys: Dispatch<SetStateAction<Keys>>
-  setLastKeys: Dispatch<SetStateAction<Keys | null>>
+/** What an act works with: the live stage it drives (stage.tsx). */
+export interface StageHandle<S> {
+  readonly root: HTMLDivElement
+  readonly cursorEl: HTMLDivElement | null
+  readonly pos: Point
+  hovered: Element | null
+  readonly kind: CursorKind
+  readonly keys: Keys
+  dragging: boolean
+  autoUsed: boolean
+  auto: ((p: Point) => void) | null
+  readonly scale: number
+  readonly speed: number
+  readonly layout: Layout
+  readonly cursor?: { ripple?: boolean; style?: string }
+  resolve(t: Target): Point
+  place(p: Point): void
+  remeasure(): void
+  ripple(at: Point): void
+  /** Merge a patch into scene state; the scene renders on the next microtask. */
+  put(patch: Partial<S> | ((s: S) => Partial<S>)): void
+  /** Render a queued patch now. */
+  flush(): void
+  setKind(kind: CursorKind): void
+  /** The current keycap row, and with `last`, the row fading out behind it. */
+  setKeys(keys: Keys, last?: Keys | null): void
 }
 
 // Each run gets its own act, bound to its own signal, so a canceled run can
 // never pick up the next run's signal and keep going.
-export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
-  const { rootRef, cursorRef, pos, hovered, kindRef, keysRef, dragging, autoUsed, autoRef, scaleRef, speed, layout, cursor, resolve, place, remeasure, ripple, setState, setKind, setKeys, setLastKeys } = env
+export function createAct<S>(signal: AbortSignal, h: StageHandle<S>): Act<S> {
+  const { root, speed, layout, cursor, resolve, place, remeasure, ripple } = h
   const entering = bezier('enter')
   const check = () => {
     if (signal.aborted) throw new Stopped()
@@ -189,7 +189,7 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
   // a row stays hovered while the cursor is on a button inside it.
   const chain = (el: Element | null) => {
     const out: Element[] = []
-    for (let n = el; n && n !== rootRef.current; n = n.parentElement) if (n.hasAttribute('data-target')) out.push(n)
+    for (let n = el; n && n !== root; n = n.parentElement) if (n.hasAttribute('data-target')) out.push(n)
     return out
   }
   // Kind from what's under the cursor, as a real one works: any element
@@ -197,14 +197,13 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
   // is over it, switching the moment it crosses the edge. Stages that mark
   // nothing keep the kind the script sets.
   const auto = (p: Point) => {
-    const root = rootRef.current
     if (!root) return
     const marked = root.querySelectorAll<HTMLElement>('[data-cursor]')
     // A stage that never marks anything keeps the script's kind. One that
     // did falls back to the pointer once its marked elements are gone, so
     // a hand doesn't outlive the thing it was over.
-    if (!marked.length && !autoUsed.current) return
-    if (marked.length) autoUsed.current = true
+    if (!marked.length && !h.autoUsed) return
+    if (marked.length) h.autoUsed = true
     const box = root.getBoundingClientRect()
     const s = box.width / root.offsetWidth || 1
     // What it shows over anything unmarked: the pointer, or the stage's own
@@ -219,7 +218,8 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
     // still read what is visibly on top, not the text beneath it. Layers
     // that are see-through (faded out) are skipped.
     root.setAttribute('data-hit', '')
-    const stack = document.elementsFromPoint(box.left + p.x * s, box.top + p.y * s)
+    // The stage's own tree: inside a shadow root (an export), the document only sees the host
+    const stack = (root.getRootNode() as Document | ShadowRoot).elementsFromPoint(box.left + p.x * s, box.top + p.y * s)
     root.removeAttribute('data-hit')
     const top = stack.find((el) => {
       if (!root.contains(el) || el.closest('.ss-cursor, .ss-keys, .ss-ripple')) return false
@@ -240,7 +240,7 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       // again unless it's marked itself, as on a real screen
       const n = top.closest<HTMLElement>('[data-cursor], button, a[href], [role="button"], [role="menuitem"], [role="option"], [role="tab"]')
       next = n && root.contains(n) && n.dataset.cursor ? (n.dataset.cursor as CursorKind) : base
-      if (next !== kindRef.current) setKind(next)
+      if (next !== h.kind) h.setKind(next)
       return
     }
     // Off screen (nothing to hit-test): judge by boxes alone
@@ -251,25 +251,25 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       // Later (inner) matches win, so a link inside a text block is a hand
       if (p.x >= x && p.x <= x + r.width / s && p.y >= y && p.y <= y + r.height / s) next = n.dataset.cursor as CursorKind
     })
-    if (next !== kindRef.current) setKind(next)
+    if (next !== h.kind) h.setKind(next)
   }
-  autoRef.current = auto
+  h.auto = auto
   // A run starts in the kind of what the cursor rests on, so a loop's first
   // frame matches its last
-  if (!dragging.current) auto(pos.current)
+  if (!h.dragging) auto(h.pos)
   const hover = (el: Element | null) => {
-    if (hovered.current === el) return
+    if (h.hovered === el) return
     const next = chain(el)
-    chain(hovered.current).forEach((n) => next.includes(n) || n.removeAttribute('data-hover'))
-    next.forEach((n) => n.setAttribute('data-hover', ''))
-    hovered.current = el
+    chain(h.hovered).forEach((n) => next.includes(n) || mark(n, 'data-hover', null))
+    next.forEach((n) => mark(n, 'data-hover', ''))
+    h.hovered = el
   }
   // Stage keeps the last key row through resets; a new Act must not reuse its identity.
-  let keyId = keysRef.current.id
+  let keyId = h.keys.id
   let carets = 0
   const targetEl = (t: Target) => {
     const name = nameOf(t)
-    return name === null ? null : rootRef.current?.querySelector(`[data-target="${name}"]`) ?? null
+    return name === null ? null : root?.querySelector(`[data-target="${name}"]`) ?? null
   }
 
   const a: Act<S> = {
@@ -277,7 +277,7 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       return signal
     },
     put(patch) {
-      if (!signal.aborted) setState((s) => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }))
+      if (!signal.aborted) h.put(patch)
     },
     async set(patch) {
       check()
@@ -286,7 +286,7 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       await frame()
       // The scene changed under a still pointer: a button that left, a menu
       // that opened. Re-read what is under it now, as a real cursor would
-      autoRef.current?.(pos.current)
+      h.auto?.(h.pos)
       check()
     },
     wait: async (ms) => {
@@ -294,19 +294,17 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       await wait(ms)
     },
     rect: (name, opts) => {
-      const root = rootRef.current
       const el = root?.querySelector<HTMLElement>(`[data-target="${name}"]`)
       if (!root || !el) {
         warn(`no element with data-target="${name}"`)
         return EMPTY
       }
-      return opts?.layout ? layoutRectOf(root, el) : rectOf(root, el, scaleRef.current)
+      return opts?.layout ? layoutRectOf(root, el) : rectOf(root, el, h.scale)
     },
     center: (name) => resolve(name),
     caret(name, at) {
       carets++
       const el = targetEl(name) as HTMLElement | null
-      const root = rootRef.current
       if (!el || !root) return 0
       const box = root.getBoundingClientRect()
       const k = box.width / root.offsetWidth || 1
@@ -350,14 +348,14 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
     },
     async move(to, opts) {
       check()
-      const from = { ...pos.current }
+      const from = { ...h.pos }
       const end = resolve(to)
       const dist = Math.hypot(end.x - from.x, end.y - from.y)
       if (dist < 0.5) return hover(targetEl(to))
       // Leave hover only on what the cursor actually leaves: moving from a
       // row onto a button inside it keeps the row hovered all the way
       const dest = chain(targetEl(to))
-      hover(chain(hovered.current).find((n) => dest.includes(n)) ?? null)
+      hover(chain(h.hovered).find((n) => dest.includes(n)) ?? null)
       // A hand travels in a shallow arc, quicker over short hops
       const ms = opts?.duration ?? clamp(260 + dist * 0.9, 300, 650)
       const curve = easeInOutCubic
@@ -370,7 +368,10 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
         const p = opts?.path ? opts.path(e, from, end) : { x: from.x + (end.x - from.x) * e + nx * lift, y: from.y + (end.y - from.y) * e + ny * lift }
         place(p)
         auto(p)
-        if (opts?.onMove) flushSync(() => opts.onMove!(p, from, t))
+        if (opts?.onMove) {
+          opts.onMove(p, from, t)
+          h.flush()
+        }
       })
       check()
       hover(targetEl(to))
@@ -382,27 +383,27 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
         await wait(120)
       }
       check()
-      const el = to !== undefined ? targetEl(to) : hovered.current
-      const cursorEl = cursorRef.current
+      const el = to !== undefined ? targetEl(to) : h.hovered
+      const cursorEl = h.cursorEl
       const finger = cursor?.style === 'touch'
       const release = own(() => {
-        cursorEl?.removeAttribute('data-pressed')
-        el?.removeAttribute('data-pressed')
+        mark(cursorEl, 'data-pressed', null)
+        mark(el, 'data-pressed', null)
         if (finger) fingerGone(cursorEl)
       })
       try {
         // A finger is only there when it touches: it shows just before, and goes after it lifts
-        if (finger) { cursorEl?.setAttribute('data-touching', ''); await wait(140); check() }
+        if (finger) { mark(cursorEl, 'data-touching', ''); await wait(140); check() }
         for (let i = 0; i < (opts?.double ? 2 : 1); i++) {
           if (i) await wait(70)
           check()
-          cursorEl?.setAttribute('data-pressed', 'true')
-          if (cursor?.ripple) ripple(pos.current)
-          el?.setAttribute('data-pressed', opts?.right ? 'right' : '')
+          mark(cursorEl, 'data-pressed', 'true')
+          if (cursor?.ripple) ripple(h.pos)
+          mark(el, 'data-pressed', opts?.right ? 'right' : '')
           await wait(opts?.double ? 80 : 100)
           check()
-          cursorEl?.removeAttribute('data-pressed')
-          el?.removeAttribute('data-pressed')
+          mark(cursorEl, 'data-pressed', null)
+          mark(el, 'data-pressed', null)
         }
       } finally {
         release()
@@ -416,15 +417,15 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       let end = typeof to === 'number' ? to : from
       if (typeof to === 'string') {
         const t = targetEl(to) as HTMLElement | null
-        if (t) end = from + (t.getBoundingClientRect().top - el.getBoundingClientRect().top) / drawnScale(rootRef.current, scaleRef.current) - (opts?.offset ?? 0)
+        if (t) end = from + (t.getBoundingClientRect().top - el.getBoundingClientRect().top) / drawnScale(root, h.scale) - (opts?.offset ?? 0)
       }
       end = clamp(end, 0, el.scrollHeight - el.clientHeight)
       // You can only scroll what the pointer is over: a visible cursor
       // outside the area moves into it first, then holds still while the
       // content moves under it
       if (cursor) {
-        const box = rectOf(rootRef.current!, el, scaleRef.current || 1)
-        const p = pos.current
+        const box = rectOf(root, el, h.scale || 1)
+        const p = h.pos
         const inside = p.x >= box.x + 8 && p.x <= box.x + box.width - 8 && p.y >= box.y + 8 && p.y <= box.y + box.height - 8
         if (!inside) {
           await this.move({ x: box.x + box.width * 0.6, y: box.y + box.height * 0.55 })
@@ -433,12 +434,12 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       }
       // A Scroll's overlay bar shows while it moves and fades once it rests
       const wrap = el.parentElement?.classList.contains('ss-scroller') ? el.parentElement : null
-      wrap?.setAttribute('data-scrolling', '')
-      const release = own(() => wrap?.removeAttribute('data-scrolling'))
+      mark(wrap, 'data-scrolling', '')
+      const release = own(() => mark(wrap, 'data-scrolling', null))
       try {
         await tween(opts?.duration ?? clamp(420 + Math.abs(end - from) * 1.2, 500, 1400), (t) => {
           el.scrollTop = from + (end - from) * easeInOutCubic(t)
-          el.toggleAttribute('data-scrolled', el.scrollTop > 0.5)
+          mark(el, 'data-scrolled', el.scrollTop > 0.5)
           thumb(el)
         })
         check()
@@ -446,13 +447,13 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
         release()
       }
       remeasure()
-      autoRef.current?.(pos.current)
+      h.auto?.(h.pos)
     },
     async snap(patch, scope) {
       check()
-      const el = scope ? rootRef.current?.querySelector(`[data-target="${scope}"]`) : rootRef.current
-      el?.setAttribute('data-instant', '')
-      const release = own(() => el?.removeAttribute('data-instant'))
+      const el = scope ? root?.querySelector(`[data-target="${scope}"]`) : root
+      mark(el, 'data-instant', '')
+      const release = own(() => mark(el, 'data-instant', null))
       try {
         a.put(patch)
         await frame()
@@ -466,22 +467,21 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       check()
       const caps = capsOf(combo)
       const id = ++keyId
-      const k = keysRef.current
-      setLastKeys(k.caps.length ? { ...k, show: false, down: false } : null)
-      setKeys({ id, caps, show: false, down: false })
+      const k = h.keys
+      h.setKeys({ id, caps, show: false, down: false }, k.caps.length ? { ...k, show: false, down: false } : null)
       await frame()
       await frame()
       check()
-      setKeys({ id, caps, show: true, down: false })
+      h.setKeys({ id, caps, show: true, down: false })
       await wait(180)
       check()
-      setKeys({ id, caps, show: true, down: true })
+      h.setKeys({ id, caps, show: true, down: true })
       await wait(140)
       check()
-      setKeys({ id, caps, show: true, down: false })
+      h.setKeys({ id, caps, show: true, down: false })
       // The caps linger and fade without holding up the script.
       void wait(600).then(() => {
-        if (keyId === id && !signal.aborted) setKeys({ id, caps, show: false, down: false })
+        if (keyId === id && !signal.aborted) h.setKeys({ id, caps, show: false, down: false })
       }, (error) => {
         if (!(error instanceof Stopped)) console.error('[stageshow] script error', error)
       })
@@ -496,18 +496,18 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       )
     },
     mark(name) {
-      if (!signal.aborted) rootRef.current?.setAttribute('data-mark', name)
+      if (!signal.aborted) root?.setAttribute('data-mark', name)
     },
     async cursor(k) {
       check()
-      setKind(k)
+      h.setKind(k)
       await frame()
     },
     async type(key, text, opts) {
       const interval = opts?.interval ?? 35
       for (let i = 0; i <= text.length; i++) {
         check()
-        setState((s) => ({ ...s, [key]: text.slice(0, i) }))
+        h.put({ [key]: text.slice(0, i) } as Partial<S>)
         // Uneven but repeatable rhythm, so every loop types the same way
         await wait(interval * (0.7 + 0.6 * hash(i)))
       }
@@ -516,13 +516,12 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       if (signal.aborted) return
       const p = resolve(to)
       place(p)
-      autoRef.current?.(p)
+      h.auto?.(p)
     },
     async enter(to, opts) {
       check()
       const end = resolve(to)
       // The frame: the stage, in stage px
-      const root = rootRef.current!
       const f = { x: 0, y: 0, w: root.offsetWidth, h: root.offsetHeight }
       // Out past the edge nearest the target, far enough that the hand is hidden
       const out = 40
@@ -542,14 +541,14 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
     },
     async drag(to, onMove, opts) {
       check()
-      const from = { ...pos.current }
+      const from = { ...h.pos }
       const end = resolve(to)
       const dist = Math.hypot(end.x - from.x, end.y - from.y)
       hover(null)
       // The hand closes only while the button is held, as a real cursor's
       // does: on press here, and back to what it was on release. Over text
       // (I-beam) or a canvas (crosshair) a drag selects, so it keeps its kind.
-      const before = kindRef.current
+      const before = h.kind
       const selects = before === 'ibeam' || before === 'crosshair'
       const closesHand = !selects && opts?.cursor !== 'preserve'
       // A finger swipes in one motion: it lands and is already moving, fast
@@ -558,10 +557,10 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       // Gathers speed over the first quarter, then one speed to the lift,
       // still moving when it leaves so the throw carries straight on
       const fingerEase = (t: number) => { const a = 0.25, k = 1 / (1 - a / 2); return t < a ? (t * t) / (2 * a) * k : (t - a / 2) * k }
-      if (finger) { cursorRef.current?.setAttribute('data-touching', ''); await wait(140); check() }
+      if (finger) { mark(h.cursorEl, 'data-touching', ''); await wait(140); check() }
       // The trail: one streak from where the finger was a few frames ago to
       // where it is now, turned along the motion and fading toward its tail
-      const streak = finger ? cursorRef.current?.querySelector<HTMLElement>('.ss-cursor__streak') ?? null : null
+      const streak = finger ? h.cursorEl?.querySelector<HTMLElement>('.ss-cursor__streak') ?? null : null
       const trail: Point[] = []
       const drawTrail = (at: Point) => {
         trail.unshift({ ...at })
@@ -570,30 +569,30 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
         const dx = at.x - h.x, dy = at.y - h.y
         const len = Math.min(Math.hypot(dx, dy), 100)
         if (!streak) return
-        streak.style.width = `${len}px`
-        streak.style.left = `${-len}px`
-        streak.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`
+        hold(streak, 'width', `${len}px`)
+        hold(streak, 'left', `${-len}px`)
+        hold(streak, 'transform', `rotate(${Math.atan2(dy, dx)}rad)`)
       }
-      dragging.current = true
-      const cursorEl = cursorRef.current
+      h.dragging = true
+      const cursorEl = h.cursorEl
       const release = own(() => {
-        dragging.current = false
-        cursorEl?.removeAttribute('data-pressed')
-        cursorEl?.removeAttribute('data-swiping')
+        h.dragging = false
+        mark(cursorEl, 'data-pressed', null)
+        mark(cursorEl, 'data-swiping', null)
         if (finger) fingerGone(cursorEl)
       })
       try {
         // The press dips first and the hand closes at the bottom of it, so
         // the change of shape sits inside the press
-        cursorEl?.setAttribute('data-pressed', 'true')
+        mark(cursorEl, 'data-pressed', 'true')
         // A finger presses first, seen as a press, and then swipes
         await wait(finger ? 170 : 60)
-        if (finger) { if (streak) streak.style.width = '0px'; cursorEl?.setAttribute('data-swiping', '') }
+        if (finger) { hold(streak, 'width', '0px'); mark(cursorEl, 'data-swiping', '') }
         check()
-        if (closesHand && !finger) setKind('grab')
+        if (closesHand && !finger) h.setKind('grab')
         if (!finger) await wait(70)
         check()
-        cursorEl?.removeAttribute('data-pressed')
+        mark(cursorEl, 'data-pressed', null)
         // Carried by a hand: the same shallow arc and ease as a move, a little
         // slower for the weight, never a ruler-straight slide
         // A selection is precise: straight, so the caret never leaves the text
@@ -623,7 +622,8 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
           const at = opts?.path?.(e, from, end) ?? { x: from.x + (end.x - from.x) * ex + nx * lift, y: from.y + (end.y - from.y) * ey + ny * lift }
           // The cursor and whatever follows it (a card, a selection) paint in
           // the same frame: render the scene now, not a frame behind
-          flushSync(() => onMove?.(at, from, t))
+          onMove?.(at, from, t)
+          h.flush()
           place(at)
           if (finger) drawTrail(at)
         })
@@ -631,12 +631,12 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
         // ahead of it on one line and behind on the next
         if (selects && onMove && carets === caretsBefore) warn('selection drift: a text selection drag never read a.caret(), so the highlight is not under the I-beam; set it from a.caret(name, at) in onMove')
         check()
-        if (closesHand && !finger) setKind(before === 'grab' ? 'pointer' : before)
+        if (closesHand && !finger) h.setKind(before === 'grab' ? 'pointer' : before)
       } finally {
         release()
       }
       // What's under the cursor now decides (the thing it was over may have moved or gone)
-      autoRef.current?.(end)
+      h.auto?.(end)
     },
     layout,
   }

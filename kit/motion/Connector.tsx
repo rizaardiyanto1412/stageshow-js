@@ -1,4 +1,5 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import type { Child } from '../jsx-runtime'
+import { behavior, hold, mark, uid } from '../render'
 import type { Point } from '../measure'
 import './Connector.css'
 
@@ -23,7 +24,7 @@ export interface ConnectorProps {
   /** An arrowhead at `to`, for direction: a request going out, a response coming back. */
   arrow?: boolean
   /** A label on the line: a short word ("POST", "200 OK") in a pill, or a number for a step marker. Arrives after the line draws. */
-  label?: ReactNode
+  label?: Child
   /** Where along the line the label sits, 0 (from) to 1 (to). */
   labelAt?: number
   dashed?: boolean
@@ -43,48 +44,8 @@ export function Connector({ from, to, route = 'h', show, radius = 8, dots, arrow
   const tip = arrow && route === 'curve' ? { x: to.x - Math.sign(to.x - from.x) * Math.min(8, Math.abs(to.x - from.x) / 3), y: to.y } : to
   const d = tip === to ? elbow(from, to, route, radius) : `${elbow(from, tip, route, radius)}L${to.x} ${to.y}`
   const ends = dots ?? (arrow ? 'none' : 'end')
-  // A dashed line ends on a dash, never a gap short of its target: stretch
-  // the 4/4 pattern a hair so a whole number of dashes fits
-  const line = useRef<SVGPathElement>(null)
-  const reveal = useRef<SVGPathElement>(null)
-  const revealId = `ss-connector-${useId().replace(/:/g, '')}`
-  const [arrived, setArrived] = useState(false)
-  useLayoutEffect(() => {
-    const el = line.current
-    if (!el) return
-    if (!dashed) {
-      el.style.removeProperty('stroke-dasharray')
-      return
-    }
-    const len = el.getTotalLength()
-    const n = Math.max(1, Math.round((len + 4) / 8))
-    const dash = (len / (n * 2 - 1)).toFixed(3)
-    el.style.strokeDasharray = `${dash} ${dash}`
-  }, [d, dashed])
-  useLayoutEffect(() => {
-    const el = dashed ? reveal.current : line.current
-    setArrived(false)
-    if (!show || !el) return
-    // The endpoint belongs to the visible line, not a guessed delay. This
-    // also works when reduced motion removes the transition, or a host
-    // advances its CSS transition one frame at a time.
-    const property = 'stroke-dashoffset'
-    const check = () => {
-      const style = getComputedStyle(el)
-      const complete = Math.abs(parseFloat(style.strokeDashoffset)) < .0001
-      if (complete) setArrived(true)
-    }
-    const settle = (event: TransitionEvent) => {
-      if (event.target === el && event.propertyName === property) check()
-    }
-    el.addEventListener('transitionend', settle)
-    el.addEventListener('transitioncancel', settle)
-    check()
-    return () => {
-      el.removeEventListener('transitionend', settle)
-      el.removeEventListener('transitioncancel', settle)
-    }
-  }, [d, dashed, show])
+  behavior('connector', connecting)
+  const revealId = `ss-connector-${uid()}`
   const pts = tip === to ? corners(from, to, route) : [...corners(from, tip, route), to]
   const q = pts[pts.length - 1]
   // A straight horizontal/vertical elbow can end with a zero-length leg.
@@ -98,17 +59,17 @@ export function Connector({ from, to, route = 'h', show, radius = 8, dots, arrow
   const at = along(pts, labelAt)
   return (
     <>
-      <svg className={`ss-connector${className ? ` ${className}` : ''}`} data-show={show || undefined} data-arrived={show && arrived || undefined} data-dashed={dashed || undefined} aria-hidden>
+      <svg className={`ss-connector${className ? ` ${className}` : ''}`} data-ss-part="connector" data-show={show || undefined} data-dashed={dashed || undefined} aria-hidden>
         {/* The reveal has its own normalized path. The visible dashed line
             keeps real dash spacing while its tip travels toward the target. */}
-        {dashed && <defs><mask id={revealId} maskUnits="userSpaceOnUse"><path ref={reveal} className="ss-connector__reveal" d={d} pathLength="1" style={{ fill: 'none', stroke: '#fff', strokeWidth: 8 }} /></mask></defs>}
-        <path ref={line} className="ss-connector__line" d={d} pathLength={dashed ? undefined : 1} mask={dashed ? `url(#${revealId})` : undefined} />
+        {dashed && <defs><mask id={revealId} maskUnits="userSpaceOnUse"><path className="ss-connector__reveal" d={d} pathLength="1" style={{ fill: 'none', stroke: '#fff', strokeWidth: 8 }} /></mask></defs>}
+        <path className="ss-connector__line" d={d} pathLength={dashed ? undefined : 1} mask={dashed ? `url(#${revealId})` : undefined} />
         {arrow && directionLength > .001 && <path d={head} className="ss-connector__arrow" />}
         {ends === 'both' && <circle cx={from.x} cy={from.y} r={3} className="ss-connector__dot ss-connector__dot--start" />}
         {ends !== 'none' && <circle cx={to.x} cy={to.y} r={3} className="ss-connector__dot" />}
       </svg>
       {label !== undefined && (
-        <span className="ss-connector__label" data-show={show || undefined} data-arrived={show && arrived || undefined} data-step={typeof label === 'number' || undefined} style={{ left: at.x, top: at.y }}>
+        <span className="ss-connector__label" data-show={show || undefined} data-step={typeof label === 'number' || undefined} style={{ left: at.x, top: at.y }}>
           {label}
         </span>
       )}
@@ -179,4 +140,59 @@ function elbow(a: Point, b: Point, route: Route, r: number) {
     return `M${a.x} ${a.y}H${b.x - sx * k}Q${b.x} ${a.y} ${b.x} ${a.y + sy * k}V${b.y}`
   }
   return `M${a.x} ${a.y}V${b.y - sy * k}Q${a.x} ${b.y} ${a.x + sx * k} ${b.y}H${b.x}`
+}
+
+// Once the line has drawn all the way, it and its label are marked arrived
+// (the label waits for it). The endpoint belongs to the visible line, not a
+// guessed delay, so this also works when reduced motion removes the
+// transition, or a host advances its CSS transition one frame at a time. A
+// dashed line ends on a dash, never a gap short of its target: the 4/4
+// pattern is stretched a hair so a whole number of dashes fits.
+function connecting(svg: HTMLElement) {
+  let arrived = false
+  let key = ''
+  const label = () => {
+    const next = svg.nextElementSibling
+    return next?.classList.contains('ss-connector__label') ? next : null
+  }
+  const set = (v: boolean) => {
+    arrived = v
+    mark(svg, 'data-arrived', v && 'true')
+    mark(label(), 'data-arrived', v && 'true')
+  }
+  const drawn = () => (svg.hasAttribute('data-dashed') ? svg.querySelector<SVGPathElement>('.ss-connector__reveal') : svg.querySelector<SVGPathElement>('.ss-connector__line'))
+  const check = () => {
+    const el = drawn()
+    if (el && svg.hasAttribute('data-show') && Math.abs(parseFloat(getComputedStyle(el).strokeDashoffset)) < 0.0001) set(true)
+  }
+  const settle = (event: Event) => {
+    if (event.target === drawn() && (event as TransitionEvent).propertyName === 'stroke-dashoffset') check()
+  }
+  svg.addEventListener('transitionend', settle)
+  svg.addEventListener('transitioncancel', settle)
+  return {
+    update() {
+      const line = svg.querySelector<SVGPathElement>('.ss-connector__line')
+      const now = `${line?.getAttribute('d')}|${svg.hasAttribute('data-show')}|${svg.hasAttribute('data-dashed')}`
+      // A label that appeared after the line arrived
+      if (arrived) mark(label(), 'data-arrived', 'true')
+      if (now === key) return
+      key = now
+      if (line) {
+        if (!svg.hasAttribute('data-dashed')) hold(line, 'stroke-dasharray', null)
+        else {
+          const len = line.getTotalLength()
+          const n = Math.max(1, Math.round((len + 4) / 8))
+          const dash = (len / (n * 2 - 1)).toFixed(3)
+          hold(line, 'stroke-dasharray', `${dash} ${dash}`)
+        }
+      }
+      set(false)
+      check()
+    },
+    destroy() {
+      svg.removeEventListener('transitionend', settle)
+      svg.removeEventListener('transitioncancel', settle)
+    },
+  }
 }

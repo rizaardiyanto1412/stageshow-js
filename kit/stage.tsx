@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import './stage.css'
-import { checkSeam, createAct, Stopped, type Script } from './act'
+import { checkSeam, createAct, Stopped, type Script, type StageHandle } from './act'
 import { Cursor, ripple as spawnRipple, type CursorKind, type CursorStyle } from './cursor'
+import { Html, html, styleText, type Child, type Style } from './jsx-runtime'
 import { Keycaps, type Keys, type KeysAt } from './keys'
-import { LookContext, type Fidelity, type Layout, type Palette, type Theme } from './looks'
+import type { Fidelity, Layout, Palette, Theme } from './looks'
 import { EMPTY, nameOf, rectOf, sameRects, stageSpace, targetRectOf, thumb, type Point, type Rect, type Target } from './measure'
-import { StillContext, useReducedMotion } from './reduced-motion'
+import { dropBehavior, hold, mark, patch, syncBehaviors, within, type Look } from './render'
 import { clock } from './clock'
 import { clamp, easeInOutCubic, isDev, warn } from './util'
 
 // The stage: fits a design-size scene into its container, runs the script
 // while it is on screen, and draws the cursor and keycaps over the scene.
-// The script API is act.ts, the cursor cursor.tsx, measuring measure.ts and
-// the look context looks.ts.
+// Stage() renders the markup, as any component does; mount() (mount.ts)
+// brings each stage on the page to life with a StageRun, which holds the
+// scene state and re-renders the scene when it changes. The script API is
+// act.ts, the cursor cursor.tsx, measuring measure.ts.
 
 /** loop: repeats while on screen. once: plays when first seen, then holds the end. hover: plays while the pointer is over it, settles back when it leaves; on a screen with no hover (a phone) it plays once. */
 export type Play = 'loop' | 'once' | 'hover'
@@ -47,7 +49,7 @@ export interface StageProps<S> {
   /**
    * A second, smaller design for narrow containers. Below `below` px of
    * container width the stage uses this size, the render's `layout` argument
-   * (and `useLook().layout` inside the stage) and data-layout become 'compact', and the script restarts. Build the
+   * (and `look().layout` inside the stage) and data-layout become 'compact', and the script restarts. Build the
    * compact scene as a tighter crop around the story, never the wide scene
    * shrunk.
    */
@@ -82,113 +84,285 @@ export interface StageProps<S> {
   specimen?: boolean
   /** No framing, when the developer asks for it: no ground, and the product sits whole with room around it, floating on their page. Film's bleed and floating checks stand down; everything else still applies. */
   unframed?: boolean
-  /** `layout` is 'wide' or 'compact' (see `compact`); useLook() also has it, but only in components rendered inside the stage. */
-  children: (s: S, rect: (name: string) => Rect, layout: Layout) => ReactNode
+  /** The scene, as a function of its state. `rect` reads where a data-target is (in stage pixels, empty until measured); `layout` is 'wide' or 'compact' (see `compact`). */
+  children: (s: S, rect: (name: string) => Rect, layout: Layout) => Child
+}
+
+// Stages rendered by the scene render in progress, in order. mount() renders
+// the scene the same way the markup was made, so the n-th stage it collects
+// is the n-th [data-ss-stage] in the page.
+let collecting: StageProps<object>[] | null = null
+
+/** Render a scene and collect the stages in it, for mount(). */
+export function collect(scene: () => Child): { markup: string; stages: StageProps<object>[] } {
+  const was = collecting
+  const stages: StageProps<object>[] = (collecting = [])
+  try {
+    return { markup: html(scene()), stages }
+  } finally {
+    collecting = was
+  }
 }
 
 const NONE = {}
 
-export function Stage<S extends object>({
-  width,
-  height,
-  initial = NONE as S,
-  script,
-  poster,
-  cursor,
-  hover,
-  play: playProp = 'loop',
-  compact,
-  keys: keysAt = 'bottom',
-  palette = 'accent',
-  greys,
-  fidelity = 'standard',
-  specimen,
-  unframed,
-  speed: speedProp = 1,
-  accent,
-  tokens,
-  ground,
-  fill: fillProp = false,
-  theme: themeProp = 'light',
-  className,
-  children,
-}: StageProps<S>) {
-  // Hover scripts can hold their ending without returning to the start.
-  // On touch, play once rather than assuming the script has a loop seam.
-  const play: Play = playProp === 'hover' && typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches ? 'once' : playProp
-  const [layout, setLayout] = useState<Layout>('wide')
-  const layoutRef = useRef(layout)
-  layoutRef.current = layout
+// What a host tool can set on window.__stageshow before stages mount:
+// film.mjs slows every stage down (--slow) or films it dark (--dark), and
+// the playground shows every stage's still (Reduced motion)
+type Film = { slow?: number; theme?: Theme; still?: boolean }
+const film = (): Film => (typeof window === 'undefined' ? {} : ((window as unknown as { __stageshow?: Film }).__stageshow ?? {}))
+
+/** The stage markup with no motion running: the first frame a server or an export writes, before mount() takes over. */
+export function Stage<S extends object>(props: StageProps<S>): Html {
+  const base = props as unknown as StageProps<object>
+  const index = collecting ? collecting.push(base) - 1 : -1
+  const { width, height, initial = NONE as S, poster, script, className, fill } = props
+  const still = !script
+  const state = still && poster ? poster : initial
+  const look = lookOf(base, 'wide')
+  const scene = within(look, still, `ss${index}`, () => html(props.children(state, () => EMPTY, 'wide')))
+  const rootStyle = stageStyle(base, width, height, 1, 0)
+  return new Html(
+    `<div class="ss-fit${className ? ` ${className}` : ''}" data-ss-stage="${index}" style="${styleText({ maxWidth: fill ? undefined : width, aspectRatio: `${width} / ${height}` })}">` +
+      `<div class="ss-stage"${stageAttrs(base, look, still, true)} style="${rootStyle}">` +
+      groundHtml(base) +
+      `<div class="ss-scene">${scene}</div>` +
+      `<div class="ss-overlay"></div>` +
+      `</div></div>`,
+  )
+}
+
+const lookOf = (p: StageProps<object>, layout: Layout): Look => ({
+  theme: film().theme ?? p.theme ?? 'light',
+  palette: p.palette ?? 'accent',
+  fidelity: p.fidelity ?? 'standard',
+  layout,
+})
+
+function stageAttrs(p: StageProps<object>, look: Look, still: boolean, placing: boolean) {
+  const a: [string, string | false | undefined][] = [
+    ['data-specimen', p.specimen && 'true'],
+    ['data-unframed', p.unframed && 'true'],
+    ['data-still', still && 'true'],
+    ['data-placing', placing && 'true'],
+    ['data-theme', look.theme],
+    ['data-palette', look.palette],
+    ['data-greys', p.greys === 'cool' && 'cool'],
+    ['data-fidelity', look.fidelity],
+    ['data-layout', look.layout],
+  ]
+  return a.map(([k, v]) => (v ? ` ${k}="${v}"` : '')).join('')
+}
+
+function stageStyle(p: StageProps<object>, w: number, h: number, scale: number, inset: number) {
+  const accent = p.accent
+  return styleText({
+    width: w,
+    height: h,
+    marginLeft: inset || undefined,
+    transform: `scale(${scale})`,
+    ...p.tokens,
+    ...(accent ? { '--ss-accent': accent, '--ss-accent-2': accent, '--ss-accent-soft': `color-mix(in srgb, ${accent} 14%, transparent)` } : null),
+  } as Style)
+}
+
+function groundHtml(p: StageProps<object>) {
+  if (!p.ground) return ''
+  const g = p.ground
+  const style = Array.isArray(g) ? styleText({ '--ss-orb-1': g[0], '--ss-orb-2': g[1], '--ss-orb-3': g[2] }) : ''
+  return `<div class="ss-ground" aria-hidden="true"${style ? ` style="${style}"` : ''}></div>`
+}
+
+/**
+ * A live stage: fits it, renders its scene from state, and runs its script
+ * while it is on screen. One per [data-ss-stage] element, made by mount().
+ */
+export class StageRun<S extends object> {
+  readonly fit: HTMLDivElement
+  readonly root: HTMLDivElement
+  readonly scene: HTMLDivElement
+  readonly overlay: HTMLDivElement
+  private p: StageProps<S>
+  private scope: string
+  private layout: Layout = 'wide'
+  private scale = 1
+  private state: S
+  private rects: Record<string, Rect> = {}
+  private kind: CursorKind
+  private keys: Keys = { id: 0, caps: [], show: false, down: false }
+  private lastKeys: Keys | null = null
+  private pos: Point = { x: 0, y: 0 }
+  private hovered: Element | null = null
+  private dragging = false
+  private autoUsed = false
+  private auto: ((p: Point) => void) | null = null
+  private reducedQuery = typeof matchMedia === 'undefined' ? null : matchMedia('(prefers-reduced-motion: reduce)')
+  private stopPlayback: (() => void) | null = null
+  private cleanups: (() => void)[] = []
+  // The scene's parts with a behavior attached (render.ts)
+  private behaviors = new Set<Element>()
+  private queued = false
+  private settleFrame = 0
+  private passes = { n: 0, frame: 0, owed: false }
+  // When the cursor last did something, and per loop: when it began, whether
+  // the cursor has moved yet, and (learned from the first run) how long it
+  // waits before its first move
+  private active = 0
+  private loopAt = 0
+  private moved = false
+  private firstMove: number | null = null
+  private glideId = 0
+  private resetFrame = 0
+
+  constructor(fit: HTMLDivElement, props: StageProps<S>, index: number) {
+    this.fit = fit
+    this.root = fit.querySelector<HTMLDivElement>(':scope > .ss-stage')!
+    this.scene = this.root.querySelector<HTMLDivElement>(':scope > .ss-scene')!
+    this.overlay = this.root.querySelector<HTMLDivElement>(':scope > .ss-overlay')!
+    this.p = props
+    this.scope = `ss${index}`
+    this.kind = props.cursor?.kind ?? 'pointer'
+    this.state = props.initial ?? (NONE as S)
+    this.fit.style.removeProperty('aspect-ratio')
+    this.watchFit()
+    this.watchMotion()
+    const onSettled = () => this.remeasure()
+    this.root.addEventListener('transitionend', onSettled)
+    this.root.addEventListener('animationend', onSettled)
+    this.cleanups.push(() => {
+      this.root.removeEventListener('transitionend', onSettled)
+      this.root.removeEventListener('animationend', onSettled)
+    })
+    this.begin()
+  }
+
+  get still() {
+    return !this.p.script || !!this.reducedQuery?.matches || !!film().still
+  }
+  private get play(): Play {
+    const play = this.p.play ?? 'loop'
+    // Hover scripts can hold their ending without returning to the start.
+    // On touch, play once rather than assuming the script has a loop seam.
+    return play === 'hover' && matchMedia('(hover: none)').matches ? 'once' : play
+  }
+  private get speed() {
+    return (this.p.speed ?? 1) / (film().slow ?? 1)
+  }
+  private get design() {
+    const c = this.p.compact
+    return this.layout === 'compact' && c ? { w: c.width, h: c.height } : { w: this.p.width, h: this.p.height }
+  }
   // Where the cursor rests, for the layout showing
-  const restAt = (): Target => {
-    const at = cursor!.at
-    return typeof at === 'object' && 'wide' in at ? at[layoutRef.current] : at
+  private restAt(): Target {
+    const at = this.p.cursor!.at
+    return typeof at === 'object' && 'wide' in at ? at[this.layout] : at
   }
-  const [grows, setGrows] = useState(false)
-  const designW = layout === 'compact' && compact ? compact.width : width
-  const designH = layout === 'compact' && compact ? compact.height : height
 
-  const fitRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const cursorRef = useRef<HTMLDivElement>(null)
-  const reduced = useReducedMotion()
-  const still = !script || reduced
-
-  const [state, setState] = useState<S>(() => (still && poster ? poster : initial))
-  const stateRef = useRef(state)
-  stateRef.current = state
-  const [scale, setScale] = useState(1)
-  const scaleRef = useRef(1)
-  scaleRef.current = scale
-  // film.mjs can slow every stage down (--slow) and film any stage dark (--dark)
-  const film = typeof window === 'undefined' ? {} : ((window as unknown as { __stageshow?: { slow?: number; theme?: Theme } }).__stageshow ?? {})
-  const speed = speedProp / (film.slow ?? 1)
-  const theme = film.theme ?? themeProp
-  const [kind, setKind] = useState<CursorKind>(cursor?.kind ?? 'pointer')
-  // A ring that spreads from the click point and fades, drawn under the cursor
-  const ripple = (at: Point) => {
-    const root = rootRef.current
-    if (!root || reduced) return
-    spawnRipple(root, at)
+  /** Render the scene for the current state now. */
+  render() {
+    this.queued = false
+    const look = lookOf(this.p as unknown as StageProps<object>, this.layout)
+    const markup = within(look, this.still, this.scope, () => html(this.p.children(this.state, (name) => this.rects[name] ?? EMPTY, this.layout)))
+    patch(this.scene, markup)
+    syncBehaviors(this.scene, this.behaviors)
+    this.renderOverlay()
+    this.remeasure()
+    // The cursor's kind follows what's under it after every change too, so
+    // a hand doesn't linger when the link it was over slides away. Not
+    // mid-drag: the drag owns the kind until release.
+    if (this.p.cursor && !this.still && !this.dragging) this.auto?.(this.pos)
   }
-  const kindRef = useRef(kind)
-  kindRef.current = kind
-  const [keys, setKeys] = useState<Keys>({ id: 0, caps: [], show: false, down: false })
-  const [lastKeys, setLastKeys] = useState<Keys | null>(null)
-  const keysRef = useRef(keys)
-  keysRef.current = keys
-  const pos = useRef<Point>({ x: 0, y: 0 })
-  // The cursor's kind follows what's under it after every commit too, so a
-  // hand doesn't linger when the link it was over slides away. Not mid-drag:
-  // the drag owns the kind until release.
-  const autoRef = useRef<((p: Point) => void) | null>(null)
-  const [inset, setInset] = useState(0)
-  const autoUsed = useRef(false)
-  const dragging = useRef(false)
-  const hovered = useRef<Element | null>(null)
+
+  private renderOverlay() {
+    const { cursor, script, keys } = this.p
+    const at = typeof keys === 'object' ? keys[this.layout] : (keys ?? 'bottom')
+    const showCursor = cursor && (!script || !this.still || cursor.still)
+    let markup = script ? html(Keycaps({ rows: [this.lastKeys, this.keys], at })) : ''
+    if (showCursor) markup += `<div data-ss-key="ss-cursor" style="display:contents">${html(Cursor({ style: cursor.style, kind: this.kind }))}</div>`
+    patch(this.overlay, markup)
+  }
+
+  private get cursorEl() {
+    return this.overlay.querySelector<HTMLDivElement>('.ss-cursor')
+  }
+
+  /** Merge a patch into state and render on the next microtask, with any other changes made meanwhile. */
+  put(patch: Partial<S> | ((s: S) => Partial<S>)) {
+    this.state = { ...this.state, ...(typeof patch === 'function' ? patch(this.state) : patch) }
+    if (this.queued) return
+    this.queued = true
+    queueMicrotask(() => this.queued && this.render())
+  }
+
+  /** Render whatever is queued now, so the scene and the cursor paint in the same frame. */
+  flush() {
+    if (this.queued) this.render()
+  }
+
+  // Rects of every data-target, in stage pixels, refreshed after each render.
+  private measureAll() {
+    const out: Record<string, Rect> = {}
+    const targets = this.root.querySelectorAll<HTMLElement>('[data-target]')
+    if (!targets.length) return out
+    const space = stageSpace(this.root, this.scale)
+    targets.forEach((el) => {
+      out[el.dataset.target!] = targetRectOf(this.root, el, this.scale, space)
+    })
+    return out
+  }
+  // Something placed from rect() can itself be a target, and the two can
+  // chase each other. Allow a few passes per frame, then wait for the next.
+  private remeasure = () => {
+    const p = this.passes
+    if (!p.frame)
+      p.frame = clock.layoutRaf(() => {
+        p.n = 0
+        p.frame = 0
+        if (!p.owed) return
+        p.owed = false
+        this.takeRects(this.measureAll())
+      })
+    if (p.n >= 4) {
+      p.owed = true
+      return
+    }
+    p.n++
+    this.takeRects(this.measureAll())
+  }
+  private takeRects(next: Record<string, Rect>) {
+    if (sameRects(this.rects, next)) return
+    this.rects = next
+    this.render()
+  }
 
   // Fit: pick the layout from the container width, then scale its design
   // size into it.
-  useLayoutEffect(() => {
-    const fit = fitRef.current
-    if (!fit) return
+  private watchFit() {
+    const fit = this.fit
     const measure = () => {
+      const { width, compact, fill } = this.p
       const w = fit.clientWidth
       // A host that sizes the stage by something other than the screen (a
       // bento tile set by its row's height) marks a wrapper data-ss-wide to
       // keep the wide design, scaled, rather than the phone-width one
       const wide = !!fit.parentElement?.closest('[data-ss-wide]')
       const next: Layout = compact && !wide && w < compact.below ? 'compact' : 'wide'
-      setLayout(next)
       // fill (or a host wrapper marked data-ss-fill) lets the stage grow past its design size, within reason
-      const grow = fillProp || !!fit.parentElement?.closest('[data-ss-fill]')
-      setGrows(grow)
+      const grow = !!fill || !!fit.parentElement?.closest('[data-ss-fill]')
       const dw = next === 'compact' ? compact!.width : width
-      const s = Math.min(grow ? 2 : 1, w / dw)
-      setScale(s)
+      const s = Math.min(grow ? 2 : 1, w / dw || 1)
+      this.scale = s
       // A design narrower than its box (a compact layout, or a stage that has
       // stopped at its design size) sits in the middle of it, not at its left
-      setInset(Math.max(0, (w - dw * s) / 2))
+      const inset = Math.max(0, (w - dw * s) / 2)
+      const switched = next !== this.layout
+      this.layout = next
+      const { w: dW, h: dH } = this.design
+      fit.style.maxWidth = grow ? '' : `${width}px`
+      fit.style.height = `${dH * s}px`
+      this.root.setAttribute('style', stageStyle(this.p as unknown as StageProps<object>, dW, dH, s, inset))
+      this.root.dataset.layout = next
+      if (switched && this.started) this.begin()
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -196,228 +370,238 @@ export function Stage<S extends object>({
     // Hosts can switch layout/fill policy without changing this box's
     // width. Observe only those attributes on its ancestors, not the scene.
     const hosts = new MutationObserver(measure)
-    for (let host = fit.parentElement; host; host = host.parentElement) {
-      hosts.observe(host, { attributes: true, attributeFilter: ['data-ss-wide', 'data-ss-fill'] })
-    }
-    return () => {
+    for (let host = fit.parentElement; host; host = host.parentElement) hosts.observe(host, { attributes: true, attributeFilter: ['data-ss-wide', 'data-ss-fill'] })
+    this.cleanups.push(() => {
       ro.disconnect()
       hosts.disconnect()
-    }
-  }, [width, compact?.below, compact?.width, fillProp]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Rects of every data-target, in stage pixels, refreshed after each commit.
-  const [rects, setRects] = useState<Record<string, Rect>>({})
-  const measureAll = useCallback(() => {
-    const root = rootRef.current
-    if (!root) return {}
-    const out: Record<string, Rect> = {}
-    const targets = root.querySelectorAll<HTMLElement>('[data-target]')
-    if (!targets.length) return out
-    const space = stageSpace(root, scaleRef.current)
-    targets.forEach((el) => {
-      out[el.dataset.target!] = targetRectOf(root, el, scaleRef.current, space)
     })
-    return out
-  }, [])
-  // Something placed from rect() can itself be a target, and the two can
-  // chase each other. Allow a few passes per frame, then wait for the next.
-  const passes = useRef({ n: 0, frame: 0, owed: false })
-  const remeasure = useCallback(() => {
-    const p = passes.current
-    if (!p.frame)
-      p.frame = clock.layoutRaf(() => {
-        p.n = 0
-        p.frame = 0
-        if (!p.owed) return
-        p.owed = false
-        const next = measureAll()
-        setRects((prev) => (sameRects(prev, next) ? prev : next))
-      })
-    if (p.n >= 4) {
-      p.owed = true
+  }
+
+  private watchMotion() {
+    const q = this.reducedQuery
+    if (!q) return
+    const change = () => this.begin()
+    q.addEventListener('change', change)
+    this.cleanups.push(() => q.removeEventListener('change', change))
+  }
+
+  private started = false
+  // A fresh scene: on mount, and whenever the layout or motion preference
+  // changes. Places everything without transitions, then starts playback.
+  private begin() {
+    this.started = true
+    this.stopPlayback?.()
+    this.stopPlayback = null
+    const look = lookOf(this.p as unknown as StageProps<object>, this.layout)
+    const still = this.still
+    for (const [k, v] of [['theme', look.theme], ['palette', look.palette], ['fidelity', look.fidelity], ['layout', look.layout]] as const) this.root.dataset[k] = v
+    this.root.toggleAttribute('data-still', still)
+    if (this.p.specimen) this.root.dataset.specimen = 'true'
+    if (this.p.unframed) this.root.dataset.unframed = 'true'
+    if (this.p.greys === 'cool') this.root.dataset.greys = 'cool'
+    this.settle()
+    this.reset()
+    if (still || !this.p.script) {
+      this.root.removeAttribute('data-offscreen')
+      this.state = this.p.poster ?? this.p.initial ?? (NONE as S)
+      this.render()
+      this.markHover()
+      if (this.p.cursor) this.placeAt(this.resolve(this.restAt()))
       return
     }
-    p.n++
-    const next = measureAll()
-    setRects((prev) => (sameRects(prev, next) ? prev : next))
-  }, [measureAll])
-  useLayoutEffect(remeasure)
-  useLayoutEffect(() => () => {
-    clock.cancelLayoutRaf(passes.current.frame)
-    passes.current = { n: 0, frame: 0, owed: false }
-  }, [])
-  // Things that slide or scale into place move after the commit that started
-  // them, so measure again once they settle.
-  useEffect(() => {
-    const root = rootRef.current
-    if (!root) return
-    root.addEventListener('transitionend', remeasure)
-    root.addEventListener('animationend', remeasure)
-    return () => {
-      root.removeEventListener('transitionend', remeasure)
-      root.removeEventListener('animationend', remeasure)
-    }
-  }, [remeasure])
-  const rectFor = useCallback((name: string) => rects[name] ?? EMPTY, [rects])
+    this.render()
+    if (this.p.cursor) this.placeAt(this.resolve(this.restAt()))
+    this.stopPlayback = this.playback()
+  }
 
   // Placing: until the first measurements (after fonts load) have painted,
   // and again after a wide/compact switch, nothing transitions. Otherwise
   // anything placed from rect() would visibly travel from 0,0 into place.
-  const [settling, setSettling] = useState(true)
-  useLayoutEffect(() => {
-    setSettling(true)
-    let live = true
-    let frame = 0
+  private settle() {
+    const root = this.root
+    root.setAttribute('data-placing', 'true')
+    clock.cancelLayoutRaf(this.settleFrame)
     const release = () => {
-      frame = clock.layoutRaf(() => {
-        frame = clock.layoutRaf(() => live && setSettling(false))
+      this.settleFrame = clock.layoutRaf(() => {
+        this.settleFrame = clock.layoutRaf(() => root.removeAttribute('data-placing'))
       })
     }
     if (!document.fonts || document.fonts.status === 'loaded') release()
-    else document.fonts.ready.then(() => live && release())
-    return () => {
-      live = false
-      clock.cancelLayoutRaf(frame)
-    }
-  }, [layout])
-
-  // When the cursor last did something; while a script plays, a cursor that
-  // has sat still for longer than `idle` fades out until its next move
-  const active = useRef(0)
-  // Each loop: when it began, whether the cursor has moved yet, and (learned
-  // from the first run) how long it waits before its first move
-  const loopAt = useRef(0)
-  const moved = useRef(false)
-  const firstMove = useRef<number | null>(null)
-  const place = useCallback((p: Point) => {
-    if (loopAt.current && !moved.current && Math.hypot(p.x - pos.current.x, p.y - pos.current.y) > 0.5) {
-      moved.current = true
-      firstMove.current ??= performance.now() - loopAt.current
-    }
-    pos.current = p
-    active.current = performance.now()
-    const el = cursorRef.current
-    if (!el) return
-    el.style.transform = `translate(${p.x}px, ${p.y}px)`
-    el.removeAttribute('data-idle')
-  }, [])
-
-  const resolve = useCallback((t: Target): Point => {
-    // One target per layout, as cursor.at takes it
-    if (typeof t === 'object' && t !== null && 'wide' in t) t = (layoutRef.current === 'compact' ? t.compact : t.wide)
-    const name = nameOf(t)
-    if (name === null) return t as Point
-    const root = rootRef.current
-    const el = root?.querySelector<HTMLElement>(`[data-target="${name}"]`)
-    if (!root || !el) {
-      warn(`no element with data-target="${name}"`)
-      return pos.current
-    }
-    const r = rectOf(root, el, scaleRef.current)
-    const f = typeof t === 'string' ? { x: 0.5, y: 0.5 } : (t as { x: number; y: number })
-    return { x: r.x + r.width * f.x, y: r.y + r.height * f.y }
-  }, [])
+    else void document.fonts.ready.then(release)
+  }
 
   // Stills have no script to hover things, so mark them here.
-  useLayoutEffect(() => {
-    if (!still || !hover) return
-    const root = rootRef.current
-    hover.forEach((name) => root?.querySelector(`[data-target="${name}"]`)?.setAttribute('data-hover', ''))
-  })
+  private markHover() {
+    this.p.hover?.forEach((name) => mark(this.root.querySelector(`[data-target="${name}"]`), 'data-hover'))
+  }
 
-  // Rest the cursor at its start point, unless a script is running: then the
-  // cursor is mid-story, and a resize must not send it back to rest
-  useLayoutEffect(() => {
-    if (cursor && !loopAt.current) place(resolve(restAt()))
-  }, [scale, layout]) // eslint-disable-line react-hooks/exhaustive-deps
+  private placeAt = (p: Point) => {
+    if (this.loopAt && !this.moved && Math.hypot(p.x - this.pos.x, p.y - this.pos.y) > 0.5) {
+      this.moved = true
+      this.firstMove ??= performance.now() - this.loopAt
+    }
+    this.pos = p
+    this.active = performance.now()
+    const el = this.cursorEl
+    if (!el) return
+    hold(el, 'transform', `translate(${p.x}px, ${p.y}px)`)
+    mark(el, 'data-idle', null)
+  }
+
+  private resolve = (t: Target): Point => {
+    // One target per layout, as cursor.at takes it
+    if (typeof t === 'object' && t !== null && 'wide' in t) t = this.layout === 'compact' ? t.compact : t.wide
+    const name = nameOf(t)
+    if (name === null) return t as Point
+    const el = this.root.querySelector<HTMLElement>(`[data-target="${name}"]`)
+    if (!el) {
+      warn(`no element with data-target="${name}"`)
+      return this.pos
+    }
+    const r = rectOf(this.root, el, this.scale)
+    const f = typeof t === 'string' ? { x: 0.5, y: 0.5 } : (t as { x: number; y: number })
+    return { x: r.x + r.width * f.x, y: r.y + r.height * f.y }
+  }
+
+  private cancelReset() {
+    ++this.glideId
+    cancelAnimationFrame(this.resetFrame)
+    this.resetFrame = 0
+    this.root.removeAttribute('data-settling')
+  }
 
   // Back to the start. `glide` (a hover stage settling as the pointer leaves)
   // lets the scene's own transitions carry it back and walks the cursor home;
   // otherwise everything jumps, since nobody is watching.
-  const glideId = useRef(0)
-  const resetFrame = useRef(0)
-  const cancelReset = useCallback(() => {
-    ++glideId.current
-    cancelAnimationFrame(resetFrame.current)
-    resetFrame.current = 0
-    rootRef.current?.removeAttribute('data-settling')
-  }, [])
-  const reset = useCallback((glide = false) => {
-    cancelReset()
-    const id = glideId.current
-    dragging.current = false
-    setState(initial)
-    setKind(cursor?.kind ?? 'pointer')
-    setKeys((k) => ({ ...k, show: false, down: false }))
-    setLastKeys(null)
-    rootRef.current?.querySelectorAll('[data-hover],[data-pressed]').forEach((el) => {
-      el.removeAttribute('data-hover')
-      el.removeAttribute('data-pressed')
+  private reset(glide = false) {
+    this.cancelReset()
+    const id = this.glideId
+    const root = this.root
+    this.dragging = false
+    this.state = this.p.initial ?? (NONE as S)
+    this.kind = this.p.cursor?.kind ?? 'pointer'
+    this.keys = { ...this.keys, show: false, down: false }
+    this.lastKeys = null
+    root.querySelectorAll('[data-hover],[data-pressed]').forEach((el) => {
+      mark(el, 'data-hover', null)
+      mark(el, 'data-pressed', null)
     })
-    rootRef.current?.removeAttribute('data-mark')
-    rootRef.current?.querySelectorAll<HTMLElement>('[data-scrolled]').forEach((el) => {
+    root.removeAttribute('data-mark')
+    root.querySelectorAll<HTMLElement>('[data-scrolled]').forEach((el) => {
       el.scrollTop = 0
-      el.removeAttribute('data-scrolled')
+      mark(el, 'data-scrolled', null)
       thumb(el)
     })
-    rootRef.current?.querySelectorAll('[data-scrolling]').forEach((el) => el.removeAttribute('data-scrolling'))
-    cursorRef.current?.removeAttribute('data-pressed')
-    hovered.current = null
-    if (!cursor) return
+    root.querySelectorAll('[data-scrolling]').forEach((el) => mark(el, 'data-scrolling', null))
+    this.render()
+    mark(this.cursorEl, 'data-pressed', null)
+    this.hovered = null
+    if (!this.p.cursor) return
     if (!glide) {
-      resetFrame.current = requestAnimationFrame(() => {
-        resetFrame.current = 0
-        place(resolve(restAt()))
-        autoRef.current?.(pos.current)
+      this.resetFrame = requestAnimationFrame(() => {
+        this.resetFrame = 0
+        this.placeAt(this.resolve(this.restAt()))
+        this.auto?.(this.pos)
       })
       return
     }
-    const root = rootRef.current
-    root?.setAttribute('data-settling', '')
-    resetFrame.current = requestAnimationFrame(() => {
-      const from = { ...pos.current }
-      const end = resolve(restAt())
+    root.setAttribute('data-settling', '')
+    this.resetFrame = requestAnimationFrame(() => {
+      const from = { ...this.pos }
+      const end = this.resolve(this.restAt())
       const ms = clamp(320 + Math.hypot(end.x - from.x, end.y - from.y) * 0.7, 380, 700)
       const t0 = performance.now()
       const step = () => {
-        if (glideId.current !== id) return
+        if (this.glideId !== id) return
         const t = Math.min(1, (performance.now() - t0) / ms)
         const e = easeInOutCubic(t)
-        place({ x: from.x + (end.x - from.x) * e, y: from.y + (end.y - from.y) * e })
-        if (t < 1) resetFrame.current = requestAnimationFrame(step)
+        this.placeAt({ x: from.x + (end.x - from.x) * e, y: from.y + (end.y - from.y) * e })
+        if (t < 1) this.resetFrame = requestAnimationFrame(step)
         else {
-          resetFrame.current = 0
-          root?.removeAttribute('data-settling')
+          this.resetFrame = 0
+          root.removeAttribute('data-settling')
         }
       }
       step()
     })
-  }, [layout]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
-  // Each run gets its own act (act.ts), bound to its own signal, so a
-  // canceled run can never pick up the next run's signal and keep going.
-  const makeAct = useMemo(
-    () => (signal: AbortSignal) =>
-      createAct<S>(signal, {
-        rootRef, cursorRef, pos, hovered, kindRef, keysRef, dragging, autoUsed, autoRef, scaleRef,
-        speed, layout, cursor, resolve, place, remeasure, ripple, setState, setKind, setKeys, setLastKeys,
-      }),
-    [resolve, place, speed, layout], // eslint-disable-line react-hooks/exhaustive-deps
-  )
+  // What an act works with. Each run gets its own act (act.ts), bound to its
+  // own signal, so a canceled run can never pick up the next run's signal
+  // and keep going.
+  private handle(): StageHandle<S> {
+    const run = this
+    return {
+      root: this.root,
+      get cursorEl() {
+        return run.cursorEl
+      },
+      get pos() {
+        return run.pos
+      },
+      get hovered() {
+        return run.hovered
+      },
+      set hovered(el) {
+        run.hovered = el
+      },
+      get kind() {
+        return run.kind
+      },
+      get keys() {
+        return run.keys
+      },
+      get dragging() {
+        return run.dragging
+      },
+      set dragging(v) {
+        run.dragging = v
+      },
+      get autoUsed() {
+        return run.autoUsed
+      },
+      set autoUsed(v) {
+        run.autoUsed = v
+      },
+      set auto(fn) {
+        run.auto = fn
+      },
+      get auto() {
+        return run.auto
+      },
+      get scale() {
+        return run.scale
+      },
+      speed: this.speed,
+      layout: this.layout,
+      cursor: this.p.cursor,
+      resolve: this.resolve,
+      place: this.placeAt,
+      remeasure: this.remeasure,
+      ripple: (at) => {
+        if (!this.still) spawnRipple(this.root, at)
+      },
+      put: (patch) => this.put(patch),
+      flush: () => this.flush(),
+      setKind: (k) => {
+        if (k === this.kind) return
+        this.kind = k
+        this.renderOverlay()
+      },
+      setKeys: (keys, last) => {
+        if (last !== undefined) this.lastKeys = last
+        this.keys = keys
+        this.renderOverlay()
+      },
+    }
+  }
 
   // Run the loop only while the stage is on screen and the tab is visible.
-  useEffect(() => {
-    const stage = rootRef.current!
-    if (still || !script) {
-      reset()
-      stage.removeAttribute('data-offscreen')
-      setState(poster ?? initial)
-      return cancelReset
-    }
-    // A changed script, layout or motion preference starts a fresh scene.
-    // Cleanup only releases resources; it never schedules another reset.
-    reset()
-    const root = fitRef.current!
+  private playback() {
+    const stage = this.root
+    const fit = this.fit
+    const { script, cursor } = this.p
+    const play = this.play
     let ctrl: AbortController | null = null
     let onScreen = false
     let hovering = false
@@ -434,66 +618,65 @@ export function Stage<S extends object>({
     const watchIdle = () => {
       window.clearInterval(idleTimer)
       if (!cursor || idle === false) return
-      active.current = performance.now()
+      this.active = performance.now()
       idleTimer = window.setInterval(() => {
-        const el = cursorRef.current
+        const el = this.cursorEl
         if (!el) return
         const now = performance.now()
-        if (!moved.current) {
+        if (!this.moved) {
           // Later loops know when it moves and handle it in beginLoop
-          if (firstMove.current === null && now - active.current > LEAD) el.setAttribute('data-idle', '')
+          if (this.firstMove === null && now - this.active > LEAD) mark(el, 'data-idle')
           return
         }
-        if (el.hasAttribute('data-pressed') || rootRef.current?.querySelector('[data-hover]')) active.current = now
-        else if (now - active.current > idle) el.setAttribute('data-idle', '')
+        if (el.hasAttribute('data-pressed') || stage.querySelector('[data-hover]')) this.active = now
+        else if (now - this.active > idle) mark(el, 'data-idle')
       }, 150)
     }
     const beginLoop = () => {
-      loopAt.current = performance.now()
-      moved.current = false
+      this.loopAt = performance.now()
+      this.moved = false
       window.clearTimeout(revealTimer)
-      const el = cursorRef.current
-      const wait = firstMove.current
+      const el = this.cursorEl
+      const wait = this.firstMove
       if (idle === false || !el || wait === null || wait <= LEAD) return
       // A long opening wait: out now, back in just before the first move
-      el.setAttribute('data-idle', '')
-      revealTimer = window.setTimeout(() => el.removeAttribute('data-idle'), wait - 400)
+      mark(el, 'data-idle')
+      revealTimer = window.setTimeout(() => mark(this.cursorEl, 'data-idle', null), wait - 400)
     }
     const unwatchIdle = () => {
       window.clearInterval(idleTimer)
       window.clearTimeout(revealTimer)
-      loopAt.current = 0
-      cursorRef.current?.removeAttribute('data-idle')
+      this.loopAt = 0
+      mark(this.cursorEl, 'data-idle', null)
     }
     const finishIdle = () => {
       window.clearInterval(idleTimer)
       window.clearTimeout(revealTimer)
       // A completed once scene cannot move again. Keep a hovered/pressed
       // cursor visible, or finish its existing idle delay with one timeout.
-      // There is no reason to poll the held ending forever.
-      const el = cursorRef.current
+      const el = this.cursorEl
       const held = () => el?.hasAttribute('data-pressed') || stage.querySelector('[data-hover]')
       if (!cursor || idle === false || !el || el.hasAttribute('data-idle') || held()) return
-      const delay = (moved.current ? idle : LEAD) - (performance.now() - active.current)
+      const delay = (this.moved ? idle : LEAD) - (performance.now() - this.active)
       revealTimer = window.setTimeout(() => {
-        if (!held()) el.setAttribute('data-idle', '')
+        if (!held()) mark(el, 'data-idle')
       }, Math.max(0, delay))
     }
 
     const start = () => {
       if (ctrl || done || !onScreen || document.hidden) return
       if (play === 'hover' && !hovering) return
-      cancelReset()
-      if (cursor) place(resolve(restAt()))
+      this.cancelReset()
+      if (cursor) this.placeAt(this.resolve(this.restAt()))
       ctrl = new AbortController()
       const signal = ctrl.signal
       watchIdle()
-      const act = makeAct(signal)
-      ;(async () => {
+      const act = createAct<S>(signal, this.handle())
+      void (async () => {
         do {
           beginLoop()
           try {
-            await script(act)
+            await script!(act)
           } catch (e) {
             if (e instanceof Stopped) return
             // A real error in the script: report it once and stand the stage
@@ -503,7 +686,7 @@ export function Stage<S extends object>({
             unwatchIdle()
             return
           }
-          if (play === 'loop' && isDev()) checkSeam(stateRef.current, initial, pos.current, cursor ? resolve(restAt()) : null)
+          if (play === 'loop' && isDev()) checkSeam(this.state, this.p.initial ?? NONE, this.pos, cursor ? this.resolve(this.restAt()) : null)
         } while (play === 'loop' && !signal.aborted)
         // Once holds its end state for good; hover holds it until the pointer leaves.
         if (play === 'once' && !signal.aborted) {
@@ -517,7 +700,7 @@ export function Stage<S extends object>({
       if (!ctrl) return
       ctrl.abort()
       ctrl = null
-      if (!done) reset(glide)
+      if (!done) this.reset(glide)
     }
 
     const markOffscreen = () => stage.toggleAttribute('data-offscreen', !onScreen || document.hidden)
@@ -526,12 +709,14 @@ export function Stage<S extends object>({
       onScreen = entry.isIntersecting
       // Off screen its CSS animations pause too, so nothing runs out of view
       markOffscreen()
-      onScreen ? start() : stop()
+      if (onScreen) start()
+      else stop()
     })
-    io.observe(root)
+    io.observe(fit)
     const onVisibility = () => {
       markOffscreen()
-      document.hidden ? stop() : start()
+      if (document.hidden) stop()
+      else start()
     }
     document.addEventListener('visibilitychange', onVisibility)
     const enter = () => {
@@ -543,69 +728,32 @@ export function Stage<S extends object>({
       stop(true)
     }
     if (play === 'hover') {
-      root.addEventListener('pointerenter', enter)
-      root.addEventListener('pointerleave', leave)
+      fit.addEventListener('pointerenter', enter)
+      fit.addEventListener('pointerleave', leave)
     }
     return () => {
       io.disconnect()
       document.removeEventListener('visibilitychange', onVisibility)
-      root.removeEventListener('pointerenter', enter)
-      root.removeEventListener('pointerleave', leave)
+      fit.removeEventListener('pointerenter', enter)
+      fit.removeEventListener('pointerleave', leave)
       unwatchIdle()
       ctrl?.abort()
       ctrl = null
-      autoRef.current = null
-      cancelReset()
+      this.auto = null
+      this.cancelReset()
     }
-  }, [still, script, makeAct, play, layout]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
-  useLayoutEffect(() => {
-    if (cursor && !still && !dragging.current) autoRef.current?.(pos.current)
-  }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const look = useMemo(() => ({ theme, palette, fidelity, layout }), [theme, palette, fidelity, layout])
-  const showCursor = cursor && (!script || !still || cursor.still)
-
-  return (
-    <div ref={fitRef} className={`ss-fit${className ? ` ${className}` : ''}`} style={{ maxWidth: grows ? undefined : width, height: designH * scale }}>
-      <div
-        ref={rootRef}
-        className="ss-stage"
-        data-specimen={specimen || undefined}
-        data-unframed={unframed || undefined}
-        data-still={still || undefined}
-        data-placing={settling || undefined}
-        data-theme={theme}
-        data-palette={palette}
-        data-greys={greys === 'cool' ? 'cool' : undefined}
-        data-fidelity={fidelity}
-        data-layout={layout}
-        style={{
-          width: designW,
-          height: designH,
-          marginLeft: inset || undefined,
-          transform: `scale(${scale})`,
-          ...tokens,
-          ...(accent ? { ['--ss-accent' as string]: accent, ['--ss-accent-2' as string]: accent, ['--ss-accent-soft' as string]: `color-mix(in srgb, ${accent} 14%, transparent)` } : null),
-        }}
-      >
-        {ground && (
-          <div
-            className="ss-ground"
-            aria-hidden
-            style={
-              Array.isArray(ground)
-                ? ({ ['--ss-orb-1' as string]: ground[0], ['--ss-orb-2' as string]: ground[1], ...(ground[2] ? { ['--ss-orb-3' as string]: ground[2] } : null) } as CSSProperties)
-                : undefined
-            }
-          />
-        )}
-        <StillContext.Provider value={still}>
-          <LookContext.Provider value={look}>{children(state, rectFor, layout)}</LookContext.Provider>
-        </StillContext.Provider>
-        {script && <Keycaps rows={[lastKeys, keys]} at={typeof keysAt === 'string' ? keysAt : keysAt[layout]} />}
-        {showCursor && <Cursor cursorRef={cursorRef} style={cursor!.style} kind={kind} />}
-      </div>
-    </div>
-  )
+  /** Stop everything and let go of the page. */
+  destroy() {
+    this.stopPlayback?.()
+    this.stopPlayback = null
+    this.cleanups.forEach((fn) => fn())
+    this.cleanups = []
+    this.behaviors.forEach(dropBehavior)
+    this.behaviors.clear()
+    clock.cancelLayoutRaf(this.passes.frame)
+    clock.cancelLayoutRaf(this.settleFrame)
+    this.queued = false
+  }
 }
