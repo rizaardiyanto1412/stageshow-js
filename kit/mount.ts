@@ -1,5 +1,5 @@
 import type { Child } from './jsx-runtime'
-import { attach, dropBehavior, patch, syncBehaviors } from './render'
+import { attach, behaviorOf, dropBehavior, patch, syncBehaviors } from './render'
 import { collect, StageRun, type StageProps } from './stage'
 
 /** The host's size, handed to a scene that lays itself out from it. Absent in a server render or an export's first frame. */
@@ -23,6 +23,21 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
   const parts = new Set<Element>()
   const box = (): Box => ({ width: host.clientWidth, height: host.clientHeight })
   let size = ''
+  // Its own: not inside a stage, and not inside another mount nested in this one
+  const own = (el: Element) => el.parentElement?.closest('[data-ss-mount]') === host && !el.parentElement?.closest('.ss-stage')
+  // A mount can sit inside another's scene (a pair a behavior mounts in a
+  // page). The outer page's renders leave this host's children to it
+  host.setAttribute('data-ss-mount', '')
+  const outer = behaviorOf(host)
+  attach(host, {
+    morph(next) {
+      outer?.morph?.(next)
+      next.setAttribute('data-ss-mount', '')
+      return false
+    },
+    update: () => outer?.update?.(),
+    destroy: () => outer?.destroy?.(),
+  })
 
   const render = (first: boolean) => {
     const b = box()
@@ -33,7 +48,7 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
     // Stages: new ones start, running ones take their props, gone ones stop
     const seen = new Set<Element>()
     host.querySelectorAll<HTMLDivElement>('[data-ss-stage]').forEach((fit) => {
-      if (fit.parentElement?.closest('[data-ss-stage]')) return
+      if (!own(fit)) return
       seen.add(fit)
       const i = Number(fit.dataset.ssStage)
       const run = runs.get(fit)
@@ -55,7 +70,7 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
         dropBehavior(fit)
         runs.delete(fit)
       }
-    syncBehaviors(host, parts, '.ss-stage')
+    syncBehaviors(host, parts, (el) => !own(el))
   }
 
   render(true)
@@ -73,5 +88,8 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
       dropBehavior(fit)
     })
     parts.forEach(dropBehavior)
+    if (outer) attach(host, outer)
+    else dropBehavior(host)
+    host.removeAttribute('data-ss-mount')
   }
 }

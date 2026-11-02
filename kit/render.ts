@@ -96,12 +96,12 @@ export function behavior(name: string, factory: BehaviorFactory) {
 }
 
 /** Attach, update and drop behaviors for the parts now in `root`. `attached` is the stage's own set, carried between calls. */
-export function syncBehaviors(root: Element, attached: Set<Element>, skip?: string) {
+export function syncBehaviors(root: Element, attached: Set<Element>, skip?: (el: Element) => boolean) {
   const now = new Set<Element>()
   // Innermost first, as effects run: a part settles its own size before the
   // part around it measures (a bubble before the thread that glides it)
   Array.from(root.querySelectorAll<HTMLElement>('[data-ss-part]')).reverse().forEach((el) => {
-    if (skip && el.closest(skip)) return
+    if (skip?.(el)) return
     now.add(el)
     let b = live.get(el)
     if (!b) {
@@ -115,6 +115,9 @@ export function syncBehaviors(root: Element, attached: Set<Element>, skip?: stri
   attached.clear()
   for (const el of now) attached.add(el)
 }
+
+/** The behavior attached to an element, if any. */
+export const behaviorOf = (el: Element): Behavior | undefined => live.get(el)
 
 /** Attach a behavior to an element directly, without a data-ss-part name: a live stage takes its element's renders this way. */
 export function attach(el: Element, b: Behavior) {
@@ -168,14 +171,17 @@ function children(parent: Node, from: Node[], to: Node[], end: Node | null) {
     update(match, t)
     return match
   })
+  // What this render drops goes first, so it never stands between two nodes
+  // that stay and forces one of them to move
+  for (const n of from) if (!used.has(n) && !owned(n) && n.parentNode === parent) parent.removeChild(n)
   // In order, moving only what is out of place: a node taken out and put
   // back would restart its transitions
-  let ref = firstLive(from[0] ?? null, end, parent)
+  const start = from.find((n) => n.parentNode === parent) ?? null
+  let ref = firstLive(start, end, parent)
   for (const node of placed) {
     if (node === ref) ref = firstLive(node.nextSibling, end, parent)
     else parent.insertBefore(node, ref)
   }
-  for (const n of from) if (!used.has(n) && !owned(n) && n.parentNode === parent) parent.removeChild(n)
 }
 
 // The next node at or after `n` (before `end`) that a render owns
