@@ -2,6 +2,20 @@ import type { Child } from './jsx-runtime'
 import { attach, behaviorOf, dropBehavior, patch, syncBehaviors } from './render'
 import { collect, StageRun, type StageProps } from './stage'
 
+// Each mounted host's render, for refresh()
+const pages = new WeakMap<Element, () => void>()
+
+/**
+ * Render the page around `el` again, now: the scene a mount() is showing,
+ * nearest first. For a page with state of its own (a lesson picker, a tab
+ * strip outside any stage), kept by the scene's module and changed by a
+ * behavior's listener. Running stages take their new props and keep playing.
+ */
+export function refresh(el: Element) {
+  const host = el.closest('[data-ss-mount]')
+  if (host) pages.get(host)?.()
+}
+
 /** The host's size, handed to a scene that lays itself out from it. Absent in a server render or an export's first frame. */
 export type Box = { width: number; height: number }
 
@@ -74,6 +88,7 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
   }
 
   render(true)
+  pages.set(host, () => render(false))
   // Rendered again only when the host's size changes; a render that changes
   // nothing on the page costs one string and a walk
   const ro = new ResizeObserver(() => {
@@ -83,6 +98,7 @@ export function mount(host: Element, scene: (box?: Box) => Child): () => void {
   ro.observe(host)
   return () => {
     ro.disconnect()
+    pages.delete(host)
     runs.forEach((run, fit) => {
       run.destroy()
       dropBehavior(fit)

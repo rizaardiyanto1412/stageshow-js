@@ -4,7 +4,8 @@
 
 // The stage: the canvas, the script, the cursor, measuring and playback
 export { Stage } from './stage'
-export { mount } from './mount'
+export { mount, refresh } from './mount'
+export type { Box } from './mount'
 export { look, reduced, uid } from './render'
 export { Html, raw } from './jsx-runtime'
 export type { Child, Style, Attrs } from './jsx-runtime'
