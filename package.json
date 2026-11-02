@@ -25,6 +25,7 @@
   },
   "exports": {
     ".": "./kit/index.ts",
+    "./export": "./scripts/export.mjs",
     "./jsx-runtime": "./kit/jsx-runtime.ts",
     "./jsx-dev-runtime": "./kit/jsx-dev-runtime.ts",
     "./*": "./kit/*"
