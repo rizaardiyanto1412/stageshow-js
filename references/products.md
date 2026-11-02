@@ -21,6 +21,6 @@ These examples reproduce recognizable product interfaces. Use them when the brie
 | Telegram | `examples/telegram/` | Phone conversation and message arrival |
 | iMessage | `examples/imessage/` | Native composer and delivery feedback |
 
-Some studies import `lucide-react`, which the playground installs. When copying one into a host, keep its local CSS and assets and install that icon dependency, or swap the icons for the host's own set. The kit itself needs React, react-dom and lucide-react (for its `Icon`). Product names, marks and imagery are covered by `NOTICE.md`.
+Studies take their icons from `kit/icons.ts` (lucide, as SVG strings); swap them for the product's own set where it has one. Exports carry only the icons a scene draws. Product names, marks and imagery are covered by `NOTICE.md`.
 
 Open the source and look at it at the intended width before borrowing. A recognizable interface can still have a weak crop, reset or transition, so give it the same rehearsal as a new scene. Being in this list is not a review.

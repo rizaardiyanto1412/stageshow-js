@@ -70,7 +70,7 @@ from the host page's site. Images the scene imports are inlined.
 ## Write a scene
 
 ```tsx
-import { Stage, Window, Text, type Act } from 'stageshow-js/index'
+import { Stage, Window, Text, type Act } from 'stageshow-js'
 
 type S = { done: boolean }
 

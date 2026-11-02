@@ -29,7 +29,7 @@ The canvas.
 
 - **Size.** Design size and scale-to-fit. `compact`: a second design for narrow containers (the composition rule is in `framing.md`, Small formats and the page). A host wrapper marked `data-ss-wide` scales the wide design only for a slot sized by height, never for an ordinary tile, which draws 1:1.
 - **Scene state** (`initial`), changed by the script's `Act` (below).
-- **Children** are `(state, rect, layout) => JSX`. `rect(name)` measures any `data-target`, re-measured after transitions settle. `layout` is `'wide'` or `'compact'`: read it here, not with `useLook()`.
+- **Children** are `(state, rect, layout) => JSX`. `rect(name)` measures any `data-target`, re-measured after transitions settle (the scene re-renders when a rect changes). `layout` is `'wide'` or `'compact'`: read it here; parts can read it with `look().layout`.
 - **Playback.** `play`: `loop`, `once`, `hover`. Hover settles back with a glide when the pointer leaves. The stage stops and resets unfinished playback offscreen, restarts it on reentry, and preserves a completed once scene. Under reduced motion it shows `poster`.
 - **The look.** `theme`, `palette`, `fidelity`; `tokens={{ ... }}` for one stage (see Look tokens); `accent`; `greys="cool"` swaps the warm canvas and well for cool ones, for macOS or a blue ground (light theme only).
 - **`ground`**: what the scene sits on. `orbs` is a pale tile lit by a few soft color orbs, so glass has color to take; pass two or three colors to choose them. Leave it out for the plain ground.
@@ -156,20 +156,64 @@ compact design size; the example dimensions are not defaults.
 ## Explicit replay
 
 `Stage` has no imperative replay handle. Put a real, accessible Replay button
-in the host and remount the demo at that story boundary:
+in the host and mount the scene again at that story boundary. `mount(host,
+Scene)` returns a function that stops every stage it started:
 
-```tsx
-const [run, setRun] = useState(0)
-return <>
-  <button onClick={() => setRun(n => n + 1)}>Replay</button>
-  <InviteDemo key={run} />
-</>
+```ts
+import { mount } from './kit'
+let stop = mount(host, InviteDemo)
+replay.addEventListener('click', () => {
+  stop()
+  host.replaceChildren()
+  stop = mount(host, InviteDemo)
+})
 ```
 
 The click explains the return to the starting picture. Keep the wrapper's size
-fixed; for a soft restart, hide the scene before changing the key and reveal
-the fresh one after. A keyed replay is deliberate: never use changing keys for
-ordinary state changes, text changes or variant switches, which should keep
-the moving object's identity. Set `play="once"` for a scene that waits for
+fixed; for a soft restart, hide the scene before mounting it again and reveal
+the fresh one after. Inside a scene, `key` does what a keyed remount did: an
+element whose key changes is replaced, not patched. That is deliberate: never
+use changing keys for ordinary state changes, text changes or variant switches,
+which should keep the moving object's identity. Set `play="once"` for a scene that waits for
 Replay after its payoff, with a meaningful `poster` so reduced motion shows
 the same complete still.
+
+## Writing a part
+
+Most parts are plain functions: props in, markup out, styled by their CSS and
+by `data-*` attributes that CSS transitions between. Reach for a behavior only
+when a part needs something a render can't say: what it showed last time (a
+number rolling from its old value), a measurement of the live page (a tab
+underline's width), or frames of its own (a spring).
+
+```tsx
+import { behavior, hold } from './kit/render'
+
+export function Underline({ value, items }: { value: number; items: string[] }) {
+  behavior('underline', (row) => ({
+    // After every render the element is in: measure and place
+    update() {
+      const tab = row.querySelector<HTMLElement>('[data-on]')
+      if (tab) hold(row.firstElementChild as HTMLElement, 'transform', `translateX(${tab.offsetLeft}px) scaleX(${tab.offsetWidth})`)
+    },
+  }))
+  return (
+    <div className="tabs" data-ss-part="underline">
+      <span className="tabs__bar" />
+      {items.map((t, i) => <span data-on={i === value || undefined}>{t}</span>)}
+    </div>
+  )
+}
+```
+
+- `behavior(name, factory)` registers the factory; `data-ss-part="name"` attaches
+  one per element. `update()` runs after each render the element is in (innermost
+  first), `morph(next)` sees the next render before it lands (change `next` to keep
+  what the behavior owns, return false to keep the element's children as they
+  are), and `destroy()` runs when the element leaves.
+- Attributes and inline styles a behavior sets go through `mark(el, name, value)`
+  and `hold(el, property, value)`: the next render keeps them. Anything set
+  directly is replaced by the render.
+- Never take an element out of the page and put it back: its transitions restart.
+  Insert and remove around it.
+- `kit/motion/Collapse.tsx` and `kit/motion/Roll.tsx` are short, complete examples.

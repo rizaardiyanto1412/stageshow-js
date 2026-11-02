@@ -7,9 +7,43 @@
   ],
   "description": "Stageshow without a framework: faux product UI and cursor demos that export as one block of HTML, CSS and JS.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rizaardiyanto1412/stageshow-js.git"
+  },
+  "keywords": [
+    "stageshow",
+    "product-demo",
+    "faux-ui",
+    "animation",
+    "cursor",
+    "skill",
+    "agent"
+  ],
   "engines": {
     "node": ">=20.19"
   },
+  "exports": {
+    ".": "./kit/index.ts",
+    "./jsx-runtime": "./kit/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./kit/jsx-dev-runtime.ts",
+    "./*": "./kit/*"
+  },
+  "bin": {
+    "stageshow-export": "scripts/export.mjs"
+  },
+  "files": [
+    "kit",
+    "scripts",
+    "playground",
+    "examples",
+    "teaching",
+    "references",
+    "SKILL.md",
+    "NOTICE.md",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "typecheck": "tsc --noEmit -p playground",
@@ -20,13 +54,13 @@
   },
   "dependencies": {
     "lucide": "0.468.0",
-    "morphdom": "^2.7.8"
+    "morphdom": "^2.7.8",
+    "esbuild": "^0.25.0",
+    "postcss": "^8.5.6"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
-    "esbuild": "^0.25.0",
     "playwright-core": "~1.48.2",
-    "postcss": "^8.5.6",
     "typescript": "^5.6.3",
     "vite": "^6.4.5"
   },

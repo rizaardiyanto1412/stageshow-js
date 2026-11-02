@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 const kit = fileURLToPath(new URL('../kit', import.meta.url))
 export default defineConfig({
   esbuild: { jsx: 'automatic', jsxImportSource: 'stageshow-js' },
-  resolve: { alias: [{ find: /^stageshow-js\/(.*)$/, replacement: `${kit}/$1` }] },
+  resolve: { alias: [{ find: /^stageshow-js$/, replacement: `${kit}/index.ts` }, { find: /^stageshow-js\/(.*)$/, replacement: `${kit}/$1` }] },
   build: { target: 'es2022' },
   server: { host: '127.0.0.1', fs: { allow: ['..'] } },
 })
