@@ -34,13 +34,14 @@
 // script switches to the compact design in a narrow column at once.
 import { build, transform } from 'esbuild'
 import postcss from 'postcss'
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const MIME = { '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif' }
 const kit = join(root, 'kit')
 
 function parseArgs(argv) {
@@ -81,7 +82,29 @@ const options = {
   logLevel: 'silent',
   define: { 'process.env.NODE_ENV': '"production"' },
   // Site paths in CSS (url(/images/...)) point at the host page's own files
-  plugins: [{ name: 'site-paths', setup: (b) => b.onResolve({ filter: /^\//, namespace: 'file' }, (a) => (a.kind === 'url-token' || a.kind === 'import-rule' ? { path: a.path, external: true } : undefined)) }],
+  plugins: [
+    { name: 'site-paths', setup: (b) => b.onResolve({ filter: /^\//, namespace: 'file' }, (a) => (a.kind === 'url-token' || a.kind === 'import-rule' ? { path: a.path, external: true } : undefined)) },
+    // new URL('./mark.svg', import.meta.url), as Vite resolves it: inlined as a
+    // data URL, so the asset travels with the export and the server render
+    // never writes a path from the build machine
+    {
+      name: 'url-assets',
+      setup: (b) =>
+        b.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, (a) => {
+          if (a.path.includes('node_modules')) return undefined
+          const text = readFileSync(a.path, 'utf8')
+          if (!text.includes('import.meta.url')) return undefined
+          const contents = text.replace(/new URL\((['"])(\.{1,2}\/[^'"]+)\1,\s*import\.meta\.url\)/g, (_, q, rel) => {
+            const file = resolve(dirname(a.path), rel)
+            const mime = MIME[extname(file).toLowerCase()] ?? 'application/octet-stream'
+            // Text stays text (SVG compresses far better unencoded); the rest is base64
+            const data = mime === 'image/svg+xml' ? `data:${mime},${encodeURIComponent(readFileSync(file, 'utf8'))}` : `data:${mime};base64,${readFileSync(file).toString('base64')}`
+            return `new URL(${JSON.stringify(data)})`
+          })
+          return { contents, loader: extname(a.path).replace(/^\.[cm]?/, '').replace(/^\./, '') || 'js', resolveDir: dirname(a.path) }
+        }),
+    },
+  ],
 }
 
 async function inTemp(fn) {
