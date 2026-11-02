@@ -11,6 +11,28 @@ It's a port of [Stageshow](https://github.com/benjitaylor/skills/tree/main/stage
 by Benji Taylor. The skill's design rules, gold examples and filming checks are
 his; this port swaps the React runtime for plain JS and adds the export.
 
+## Stageshow vs stageshow-js
+
+Same skill, same look, same motion. What changes is what your page has to run.
+
+| | [Stageshow](https://github.com/benjitaylor/skills/tree/main/stageshow) | stageshow-js |
+|---|---|---|
+| Runtime in your page | React 18+ and react-dom | None: about 25 KB gzipped of plain JS, engine included |
+| Where a demo runs | Inside a React app | Any page: WordPress, Webflow, static HTML, React, Svelte, Vue |
+| What you ship | The kit's components, copied into your app | `npm run export`: one paste-in block of HTML, CSS and JS |
+| First frame | Rendered by React in the browser | Already in the HTML, sized by CSS, visible before any script runs |
+| Page CSS | Shares the page's CSS (kit styles sit in a layer) | Isolated in a shadow root: the theme can't reach the demo, nor the demo the theme |
+| Several demos on a page | Each mounts its own React tree | `--outdir` shares one engine script and one stylesheet across them |
+| Writing a scene | TSX with React hooks for per-element memory | The same TSX, rendered to strings; small behaviors replace hooks |
+| Icons | lucide-react | The same lucide icons as SVG strings, same names and props |
+| Install | `npx skills add benjitaylor/skills --skill stageshow` | `npx skills add rizaardiyanto1412/stageshow-js --skill stageshow-js` |
+
+Every example and teaching pair was ported and filmed side by side with the
+React original. At 1280px and 390px, each poster frame and each settled beat
+matched: 0% pixel difference, or under 0.2% where the gap was sub-pixel
+anti-aliasing. The exception is three specimen sheets, where upstream's app
+icon artwork (not MIT licensed) was swapped for plain tiles.
+
 ## Install the skill
 
 ```sh
