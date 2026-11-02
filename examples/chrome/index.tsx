@@ -1,4 +1,4 @@
-import { Icon, Prompt, Stage, Window, type WindowProps } from '../../kit'
+import { Icon, Prompt, Stage, Window, mount, type Child, type WindowProps } from '../../kit'
 import './chrome.css'
 
 // One native-size figure per option. The page reflows; the chrome does not
@@ -36,28 +36,41 @@ const specimens: Specimen[] = [
   { id: 'combined', title: 'Combined', note: 'Floating sidebar, tall bar and larger lights.', cool: true, props: { title: 'Files', toolbar: <TallTool />, sidebarWidth: 96, sidebarStyle: 'floating', sidebar: <Side />, lightsSize: 'large', barSize: 'tall' } },
 ]
 
-function Figure({ item }: { item: Specimen }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(288)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => { if (node.clientWidth) setWidth(node.clientWidth) }
-    measure()
+// The stage takes its width from the column it sits in. A render can't
+// measure, so the column renders empty and the stage mounts into it once it
+// is on the page, and again whenever its width changes.
+function measured(id: string, scene: (width: number) => Child) {
+  if (typeof document === 'undefined') return
+  queueMicrotask(() => {
+    const host = document.getElementById(id)
+    if (!host) return
+    let width = 0, stop = () => {}
+    const measure = () => {
+      if (!host.isConnected) return void (observer.disconnect(), stop())
+      if (!host.clientWidth || host.clientWidth === width) return
+      width = host.clientWidth
+      stop()
+      host.replaceChildren()
+      stop = mount(host, () => scene(width))
+    }
     const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
+    measure()
+    observer.observe(host)
+  })
+}
+
+function Figure({ item }: { item: Specimen }) {
+  const id = `wc-picture-${item.id}`
+  measured(id, width =>
+    <Stage specimen width={width} height={224} greys={item.cool ? 'cool' : undefined}>
+      {() => <div className="wc-ground" data-material={item.id}>
+        <Window {...item.props} className="wc-window" style={{ width: width - 32, height: 176 }}>
+          {item.id === 'terminal' ? <div className="wc-terminal"><Prompt>pwd</Prompt><span>/workspace</span></div> : <Content short={Boolean(item.props.tabs)} />}
+        </Window>
+      </div>}
+    </Stage>)
   return <figure className="wc-figure" data-specimen={item.id}>
-    <div ref={ref} className="wc-picture">
-      <Stage specimen width={width} height={224} greys={item.cool ? 'cool' : undefined}>
-        {() => <div className="wc-ground" data-material={item.id}>
-          <Window {...item.props} className="wc-window" style={{ width: width - 32, height: 176 }}>
-            {item.id === 'terminal' ? <div className="wc-terminal"><Prompt>pwd</Prompt><span>/workspace</span></div> : <Content short={Boolean(item.props.tabs)} />}
-          </Window>
-        </div>}
-      </Stage>
-    </div>
+    <div id={id} className="wc-picture" />
     <figcaption><strong>{item.title}</strong><span>{item.note}</span></figcaption>
   </figure>
 }

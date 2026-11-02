@@ -1,6 +1,7 @@
 import type { Child } from '../../kit'
-import { Count, Icon, Meter, Prompt, Caret, Stage, States, Window, reduced } from '../../kit'
+import { Count, Icon, Meter, Prompt, Caret, Stage, States, Window } from '../../kit'
 import type { Act, Layout } from '../../kit'
+import type { Box } from '../../kit'
 import './grid.css'
 
 // A ruled bento on dark: the features section of Halite, an invented edge
@@ -46,20 +47,17 @@ function Tile({ area, title, children, picture }: { area: string; title: Child; 
   )
 }
 
-// Measure the tile, not the page: a wide page can still contain a narrow tile.
-function usePictureWidth() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(340)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => setWidth(node.clientWidth)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
+// Measure the tile, not the page: a wide page can still contain a narrow
+// tile. The cells' widths come from the host's (grid.css's grid, worked out
+// here: 1px border, 1px rules); without a host (a server render), every
+// picture is 340 wide.
+type Cells = { span1: number; span2: number; statHeight: number }
+function cells(box?: Box): Cells {
+  if (!box) return { span1: 340, span2: 340, statHeight: 250 }
+  const inner = Math.min(box.width, 984) - 2
+  const columns = box.width >= 900 ? 3 : box.width >= 600 ? 2 : 1
+  const column = (inner - (columns - 1)) / columns
+  return { span1: Math.round(column), span2: Math.round(Math.min(inner, column * 2 + 1)), statHeight: [250, 320, 390][columns - 1] }
 }
 
 /* ---------------- Create (hero) ---------------- */
@@ -104,14 +102,13 @@ function Terminal({ on, fill, layout }: { on: boolean; fill?: boolean; layout: L
   )
 }
 
-function Create() {
-  const [ref, width] = usePictureWidth()
+function Create({ width }: { width: number }) {
   return (
     <Tile
       area="hero"
       title={<b>A database in one command.</b>}
       picture={
-        <div ref={ref} className="rb-picture rb-picture--hero" style={{ ['--rb-picture-width' as string]: `${width}px` }}>
+        <div className="rb-picture rb-picture--hero" style={{ ['--rb-picture-width' as string]: `${width}px` }}>
           <Stage<Beat> width={width} height={300} theme="dark" initial={before} poster={after} play="once" script={create} className="rb-stage">
             {(s) => <Terminal on={s.on} fill={s.fill} layout={width < 600 ? 'compact' : 'wide'} />}
           </Stage>
@@ -125,43 +122,27 @@ function Create() {
 
 /* ---------------- Reads (stat) ---------------- */
 
-function useInView<T extends Element>(delay: number) {
-  const ref = useRef<T>(null)
-  const [seen, setSeen] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let t = 0
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return
-      io.disconnect()
-      t = window.setTimeout(() => setSeen(true), delay)
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => {
-      io.disconnect()
-      clearTimeout(t)
-    }
-  }, [delay])
-  return [ref, seen] as const
-}
-
-function Reads() {
-  const reduced = reduced()
-  const [ref, seen] = useInView<HTMLDivElement>(LEAD + STEP)
+// The page has no state of its own to turn 0 into 4 when the grid scrolls
+// in, so the stat's text sits in a Stage the cell's size, which plays the
+// beat like every other cell (rb-stage--text keeps the page's type)
+function Reads({ width, height }: { width: number; height: number }) {
   return (
     <Tile area="stat" title={null}>
-      <div ref={ref} className="rb-stat">
-        <span className="rb-stat-lead">
-          <Icon name="bolt" filled size={16} className="rb-bolt" />
-          Reads in
-        </span>
-        <span className="rb-stat-number">
-          <Count value={seen || reduced ? 4 : 0} duration={1300} />
-          <span className="rb-stat-unit">ms</span>
-        </span>
-        <span className="rb-stat-label">at the median, from the replica nearest each user.</span>
-      </div>
+      <Stage<Beat> width={width} height={height} theme="dark" initial={before} poster={after} play="once" script={beat(1)} className="rb-stage rb-stage--text">
+        {(s) => (
+          <div className="rb-stat">
+            <span className="rb-stat-lead">
+              <Icon name="bolt" filled size={16} className="rb-bolt" />
+              Reads in
+            </span>
+            <span className="rb-stat-number">
+              <Count value={s.on ? 4 : 0} duration={1300} />
+              <span className="rb-stat-unit">ms</span>
+            </span>
+            <span className="rb-stat-label">at the median, from the replica nearest each user.</span>
+          </div>
+        )}
+      </Stage>
     </Tile>
   )
 }
@@ -188,8 +169,7 @@ function arc(a: { x: number; y: number }, b: { x: number; y: number }) {
   return `M${a.x} ${a.y} Q${mx} ${my - d * 0.22} ${b.x} ${b.y}`
 }
 
-function Regions() {
-  const [ref, width] = usePictureWidth()
+function Regions({ width }: { width: number }) {
   // Keep the region names native-size while moving their points inward.
   const point = (p: typeof PRIMARY) => ({ ...p, x: width < 360 ? 38 + (p.x - 62) / 224 * (width - 106) : p.x + (width - 380) / 2 })
   const primary = point(PRIMARY)
@@ -199,7 +179,7 @@ function Regions() {
       area="map"
       title={<b>Replicas near every user.</b>}
       picture={
-        <div ref={ref} className="rb-picture rb-picture--map">
+        <div className="rb-picture rb-picture--map">
           <Stage<Beat> width={width} height={236} theme="dark" initial={before} poster={after} play="once" script={beat(2)} className="rb-stage">
             {(s) => (
               <div className="rb-map" data-on={s.on || undefined}>
@@ -243,15 +223,14 @@ const WRITES = Array.from({ length: 50 }, (_, i) => {
 // Two minutes a bar from 13:00: the handle stops at 14:02, the table went at 14:04
 const DROP = 31
 
-function Restore() {
-  const [ref, width] = usePictureWidth()
+function Restore({ width }: { width: number }) {
   const layout = width < 600 ? 'compact' : 'wide'
   return (
     <Tile
       area="restore"
       title={<b>Undo the bad migration.</b>}
       picture={
-        <div ref={ref} className="rb-picture rb-picture--restore">
+        <div className="rb-picture rb-picture--restore">
           <Stage<Beat> width={width} height={layout === 'compact' ? 236 : 216} theme="dark" initial={before} poster={after} play="once" script={beat(3)} className="rb-stage">
             {(s) => {
               const wide = layout === 'wide'
@@ -332,14 +311,15 @@ function Drivers() {
   )
 }
 
-export default function RuledBento() {
+export default function RuledBento(box?: Box) {
+  const c = cells(box)
   return (
     <div className="ruled-bento">
       <div className="rb-grid">
-        <Create />
-        <Reads />
-        <Regions />
-        <Restore />
+        <Create width={c.span2} />
+        <Reads width={c.span1} height={c.statHeight} />
+        <Regions width={c.span1} />
+        <Restore width={c.span2} />
         <Drivers />
       </div>
     </div>

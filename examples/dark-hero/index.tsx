@@ -1,6 +1,7 @@
 import type { Child } from '../../kit'
 import { GitBranch, GitCommitHorizontal } from '../../kit/icons'
 import { Badge, Bar, Collapse, Spinner, Stage, Window, type Act } from '../../kit'
+import { behavior, hold, mark } from '../../kit/render'
 import './hero.css'
 
 // A dark desktop hero: a deploy lands at the top of a project's deployments
@@ -124,18 +125,30 @@ function Mark({ ready }: { ready: boolean }) {
 // shorter, the old word fades out before the edge reaches it; getting
 // longer, the edge opens first and the new word fades into the room.
 function Label({ ready }: { ready: boolean }) {
-  const words = useRef<HTMLSpanElement[]>([])
-  const [w, setW] = useState<number[]>([])
-  useLayoutEffect(() => setW(words.current.map(e => e.offsetWidth)), [])
+  behavior('dh-label', labelling)
   const on = ready ? 1 : 0
-  const shrink = w.length === 2 && w[on]! < w[1 - on]!
   return (
-    <span className="dh-label" data-shrink={shrink || undefined} style={w.length ? { width: w[on] } : undefined}>
+    <span className="dh-label" data-ss-part="dh-label">
       {['Building', 'Ready'].map((t, i) => (
-        <span key={t} ref={e => { if (e) words.current[i] = e }} className="dh-word" data-on={i === on || undefined}>{t}</span>
+        <span key={t} className="dh-word" data-on={i === on || undefined}>{t}</span>
       ))}
     </span>
   )
+}
+
+// Measures both words once, then after every render sets the cell to the
+// width of the word that is showing, and whether that is a shrink
+function labelling(el: HTMLElement) {
+  let w: number[] = []
+  return {
+    update() {
+      const words = Array.from(el.children) as HTMLElement[]
+      if (!w.length) w = words.map(e => e.offsetWidth)
+      const on = words.findIndex(e => e.hasAttribute('data-on'))
+      mark(el, 'data-shrink', w[on]! < w[1 - on]!)
+      hold(el, 'width', `${w[on]}px`)
+    },
+  }
 }
 
 function Row({ lead, msg, hash, when, status, time, current }: { lead?: boolean; msg: string; hash: string; when: string; status: Child; time: Child; current: boolean }) {

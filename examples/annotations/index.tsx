@@ -1,5 +1,4 @@
-import type { Style } from '../../kit'
-import { Connector, Follow, Icon, Stage, States, type Act, type Rect } from '../../kit'
+import { Connector, Follow, Icon, Stage, States, mount, uid, type Act, type Rect, type Style } from '../../kit'
 import './annotations.css'
 import { CollectionStudy, DetailStudy } from './composed'
 
@@ -65,7 +64,7 @@ function MeasureStudy({ width }: { width: number }) {
   const start = { width: compact ? 168 : 256, height: compact ? 136 : 150 }
   const finish = { width: compact ? 188 : 304, height: compact ? 160 : 180 }
   const x = compact ? width < 330 ? 36 + (width - 288) / 2 : Math.max(36, Math.round((width - finish.width - 48) / 2)) : (width - finish.width) / 2 - 14
-  const script = useMemo(() => async (a: Act<MeasureState>) => {
+  const script = async (a: Act<MeasureState>) => {
     a.mark('start'); await a.wait(650); await a.move('measure-card'); await a.click()
     await a.set({ selected: true }); await a.wait(500)
     await a.move('resize'); const from = a.center('resize'); a.mark('resize')
@@ -75,8 +74,8 @@ function MeasureStudy({ width }: { width: number }) {
     await a.drag({ x: back.x - finish.width + start.width, y: back.y - finish.height + start.height }, (p, origin) => a.put({ width: finish.width + p.x - origin.x, height: finish.height + p.y - origin.y }), { duration: 1400 })
     await a.set(start); await a.move('measure-rest'); await a.click()
     await a.set({ selected: false }); await a.wait(650); a.mark('done'); await a.wait(650)
-  }, [compact])
-  return <Stage key={compact ? 'compact' : 'wide'} width={width} height={compact ? 420 : 380} initial={{ selected: false, ...start }} poster={{ selected: true, ...finish }} script={script} cursor={{ at: { x: width - 30, y: 340 } }} greys="cool" accent="#6979c9" className={`an-study an-measure${width < 330 ? ' an-measure--narrow' : ''}`}>
+  }
+  return <Stage width={width} height={compact ? 420 : 380} initial={{ selected: false, ...start }} poster={{ selected: true, ...finish }} script={script} cursor={{ at: { x: width - 30, y: 340 } }} greys="cool" accent="#6979c9" className={`an-study an-measure${width < 330 ? ' an-measure--narrow' : ''}`}>
     {s => <>
       <div className="an-canvas-panel"><header className="an-product-head"><strong>Board layout</strong><span>Project card</span></header><span className="an-canvas-rest" data-target="measure-rest" /></div>
       <div className="an-selection" data-selected={s.selected || undefined} style={{ left: x, top: compact ? 137 : 112, width: s.width, height: s.height }}>
@@ -218,7 +217,7 @@ async function streamScript(a: Act<StreamState>) {
 }
 function StreamStudy({ width }: { width: number }) {
   const compact = width < 520
-  const revealId = `an-stream-${useId().replace(/:/g, '')}`
+  const revealId = `an-stream-${uid()}`
   return <Stage width={width} height={compact ? 504 : 330} initial={{ connected: false, receiving: false }} poster={{ connected: true, receiving: true }} script={streamScript} play="once" cursor={{ at: { x: 25, y: compact ? 356 : 270 } }} greys="cool" accent="#0d9488" className={`an-study an-stream${compact ? ' an-stream--compact' : ''}`}>
     {(s, rect) => {
       const a = rect('stream-source'), b = rect('stream-destination')
@@ -253,29 +252,51 @@ function StreamStudy({ width }: { width: number }) {
   </Stage>
 }
 
-export default function Annotations() {
-  const [selected, choose] = useState<Study>(initialStudy), [revision, replay] = useState(0), [width, setWidth] = useState<number | null>(null)
-  const host = useRef<HTMLDivElement>(null), id = useId()
+function StudyScene({ study, width }: { study: Study; width: number }) {
+  return study === 'collect' ? <CollectionStudy width={width} /> : study === 'detail' ? <DetailStudy width={width} /> : study === 'chart' ? <ChartStudy width={width} /> : study === 'measure' ? <MeasureStudy width={width} /> : study === 'flow' ? <FlowStudy width={width} /> : study === 'branch' ? <BranchStudy width={width} /> : study === 'stream' ? <StreamStudy width={width} /> : <FollowStudy width={width} />
+}
+
+// The picker and the replay button are page controls, not part of any scene:
+// once the gallery is on the page they mount the chosen study at the
+// gallery's width, and mount it again when the study, the width or a replay
+// asks for it
+function play(gallery: HTMLElement, initial: Study) {
+  const scene = gallery.querySelector<HTMLElement>('.an-scene')!, picker = gallery.querySelector('select')!, note = gallery.querySelector('.an-description')!
+  let selected = initial, width = 0, stop = () => {}
+  const replay = () => {
+    stop()
+    scene.replaceChildren()
+    scene.dataset.annotation = selected
+    stop = mount(scene, () => <StudyScene study={selected} width={width} />)
+  }
   const selectStudy = (value: Study) => {
-    choose(value)
+    selected = value
+    note.textContent = studies.find(study => study.id === value)!.note
     const url = new URL(location.href)
     url.searchParams.set('annotation', value)
     history.replaceState(null, '', url)
     if (parent !== window) parent.postMessage({ type: 'stageshow:status', annotation: value }, location.origin)
+    replay()
   }
-  useLayoutEffect(() => {
-    const node = host.current
-    if (!node) return
-    const read = () => setWidth(Math.min(600, Math.floor(node.getBoundingClientRect().width)))
-    read(); const observer = new ResizeObserver(read); observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
+  const measure = () => {
+    if (!gallery.isConnected) return void (observer.disconnect(), stop())
+    const next = Math.min(600, Math.floor(gallery.getBoundingClientRect().width))
+    if (next !== width) { width = next; replay() }
+  }
+  picker.addEventListener('change', () => selectStudy(picker.value as Study))
+  gallery.querySelector('button')!.addEventListener('click', replay)
+  const observer = new ResizeObserver(measure)
+  measure()
+  observer.observe(gallery)
+}
+
+export default function Annotations() {
+  const selected = initialStudy(), id = 'an-study-picker'
+  if (typeof document !== 'undefined') queueMicrotask(() => { const gallery = document.getElementById(id)?.closest<HTMLElement>('.an-gallery'); if (gallery) play(gallery, selected) })
   const active = studies.find(study => study.id === selected)!
-  return <div className="an-gallery" ref={host}>
-    <div className="an-picker"><label htmlFor={id}>Study</label><select id={id} value={selected} onChange={event => selectStudy(event.target.value as Study)}>{studies.map(study => <option key={study.id} value={study.id}>{study.title}</option>)}</select><button type="button" onClick={() => replay(value => value + 1)} aria-label="Replay annotation study"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden><path d="M3.2 4.3A4.5 4.5 0 1 1 2.6 8M3.2 1.8v2.8H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>
-    <div key={`${selected}-${revision}`} className="an-scene" data-annotation={selected}>
-      {width !== null && (selected === 'collect' ? <CollectionStudy width={width} /> : selected === 'detail' ? <DetailStudy width={width} /> : selected === 'chart' ? <ChartStudy width={width} /> : selected === 'measure' ? <MeasureStudy width={width} /> : selected === 'flow' ? <FlowStudy width={width} /> : selected === 'branch' ? <BranchStudy width={width} /> : selected === 'stream' ? <StreamStudy width={width} /> : <FollowStudy width={width} />)}
-    </div>
+  return <div className="an-gallery">
+    <div className="an-picker"><label htmlFor={id}>Study</label><select id={id}>{studies.map(study => <option key={study.id} value={study.id} selected={study.id === selected}>{study.title}</option>)}</select><button type="button" aria-label="Replay annotation study"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden><path d="M3.2 4.3A4.5 4.5 0 1 1 2.6 8M3.2 1.8v2.8H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></button></div>
+    <div className="an-scene" data-annotation={selected} />
     <p className="an-description">{active.note}</p>
   </div>
 }

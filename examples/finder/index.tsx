@@ -19,6 +19,7 @@ import {
   X,
 } from '../../kit/icons'
 import { Bar, Collapse, Stage, Text, Window, type Act, type Layout, type Point } from '../../kit'
+import { behavior, mark } from '../../kit/render'
 import './finder.css'
 
 // Finder, list view. The user selects a photo, presses Space and Quick Look
@@ -298,32 +299,42 @@ function Photo({ className, alt }: { className?: string; alt?: boolean }) {
 
 /** The drag image uses the same frame's callback point, with no second RAF. */
 function DragImage({ ghost, children }: { ghost: Ghost; children: Child }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const over = useRef<HTMLElement | null>(null)
+  behavior('fq-drag', dragging)
   const following = ghost.on && !ghost.dropped
   const { x: ox, y: oy } = ghost.off
   const { x, y } = ghost.at
-  useLayoutEffect(() => {
-    const root = ref.current?.closest<HTMLElement>('.ss-stage')
-    let next: HTMLElement | null = null
-    if (following && root) {
-      const box = root.getBoundingClientRect()
-      const scale = box.width / root.offsetWidth || 1
-      const hit = document.elementFromPoint(box.left + x * scale, box.top + y * scale)?.closest<HTMLElement>('[data-drop]') ?? null
-      if (hit && root.contains(hit)) next = hit
-    }
-    if (next !== over.current) {
-      over.current?.removeAttribute('data-over')
-      next?.setAttribute('data-over', '')
-      over.current = next
-    }
-  }, [following, x, y])
-  useLayoutEffect(() => () => over.current?.removeAttribute('data-over'), [])
   return (
-    <div ref={ref} className="fq-drag" data-show={following || undefined} data-dropped={ghost.dropped || undefined} style={{ transform: `translate(${x - ox}px, ${y - oy}px)` }} aria-hidden>
+    <div className="fq-drag" data-ss-part="fq-drag" data-show={following || undefined} data-dropped={ghost.dropped || undefined} data-x={x} data-y={y} style={{ transform: `translate(${x - ox}px, ${y - oy}px)` }} aria-hidden>
       <div className="fq-drag__inner" style={{ transformOrigin: `${ox}px ${oy}px` }}>
         {children}
       </div>
     </div>
   )
+}
+
+// Lights the drop target under the arrow while the drag image follows it
+function dragging(el: HTMLElement) {
+  let over: HTMLElement | null = null
+  return {
+    update() {
+      const root = el.closest<HTMLElement>('.ss-stage')
+      let next: HTMLElement | null = null
+      if (el.hasAttribute('data-show') && root) {
+        const box = root.getBoundingClientRect()
+        const scale = box.width / root.offsetWidth || 1
+        const x = Number(el.dataset.x)
+        const y = Number(el.dataset.y)
+        const hit = document.elementFromPoint(box.left + x * scale, box.top + y * scale)?.closest<HTMLElement>('[data-drop]') ?? null
+        if (hit && root.contains(hit)) next = hit
+      }
+      if (next !== over) {
+        mark(over, 'data-over', null)
+        mark(next, 'data-over')
+        over = next
+      }
+    },
+    destroy() {
+      mark(over, 'data-over', null)
+    },
+  }
 }

@@ -124,7 +124,7 @@ function Priority({ level }: { level: Row['pri'] }) {
   if (level === 0) {
     return (
       <svg className="ln-pri" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-        {[2, 6, 10].map((x) => <rect key={x} x={x - 0.75} y="6.25" width="2.5" height="1.5" rx="0.5" />)}
+        {[2, 6, 10].map((x) => <rect key={`dot${x}`} x={x - 0.75} y="6.25" width="2.5" height="1.5" rx="0.5" />)}
       </svg>
     )
   }
@@ -140,7 +140,7 @@ function Priority({ level }: { level: Row['pri'] }) {
   return (
     <svg className="ln-pri" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
       {[0, 1, 2].map((i) => (
-        <rect key={i} x={1.5 + i * 4} y={8 - i * 3} width="3" height={4 + i * 3} rx="1" data-on={i < level || undefined} />
+        <rect key={`level${i}`} x={1.5 + i * 4} y={8 - i * 3} width="3" height={4 + i * 3} rx="1" data-on={i < level || undefined} />
       ))}
     </svg>
   )

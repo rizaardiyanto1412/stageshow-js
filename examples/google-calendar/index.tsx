@@ -194,7 +194,7 @@ function MiniMonth() {
           </span>
         ))}
         {days.map((d, i) => (
-          <span key={i} className="gc-mini-day" data-out={d.out || undefined} data-today={(!d.out && d.n === DAY) || undefined}>
+          <span key={`d${i}`} className="gc-mini-day" data-out={d.out || undefined} data-today={(!d.out && d.n === DAY) || undefined}>
             {d.n}
           </span>
         ))}
@@ -272,7 +272,7 @@ function Sidebar() {
           ['#33b679', 54],
           ['#8e24aa', 62],
         ].map(([c, w], i) => (
-          <div key={i} className="gc-cal">
+          <div key={`cal${i}`} className="gc-cal">
             <span className="gc-check" style={{ background: c as string }} />
             <Bar w={w as number} h={6} tone={3} />
           </div>
@@ -294,7 +294,7 @@ function Grid({ s, layout }: { s: S; layout: Layout }) {
       <div className="gc-dayhead">
         <span className="gc-tz">GMT-07</span>
         {days.map((d) => (
-          <span key={d.n} className="gc-dayname" data-today={d.n === DAY || undefined}>
+          <span key={`name${d.n}`} className="gc-dayname" data-today={d.n === DAY || undefined}>
             <span className="gc-dow">{d.d}</span>
             <span className="gc-date">{d.n}</span>
           </span>
@@ -303,15 +303,15 @@ function Grid({ s, layout }: { s: S; layout: Layout }) {
       <div className="gc-body" data-crop>
         <div className="gc-gutter">
           {hours.map((m, i) => (
-            <span key={m} className="gc-hour" style={{ top: i * g.hour }}>
+            <span key={`hr${m}`} className="gc-hour" style={{ top: i * g.hour }}>
               {i > 0 && hourLabel(m)}
             </span>
           ))}
         </div>
         {days.map((d) => (
-          <div key={d.n} className="gc-col" data-target={d.n === DAY ? 'today-col' : undefined}>
+          <div key={`col${d.n}`} className="gc-col" data-target={d.n === DAY ? 'today-col' : undefined}>
             {EVENTS.filter((e) => e[0] === d.n).map(([, a, b, bars], i) => (
-              <div key={i} className="gc-event" data-past={d.n < DAY || (d.n === DAY && b <= NOW) || undefined} style={{ top: top(a) + 1, height: top(b) - top(a) - 2 }}>
+              <div key={`${d.n}-${i}`} className="gc-event" data-past={d.n < DAY || (d.n === DAY && b <= NOW) || undefined} style={{ top: top(a) + 1, height: top(b) - top(a) - 2 }}>
                 {bars.map((w, j) => (
                   <Bar key={j} w={w} h={5} className="gc-event-bar" data-sub={j > 0 || undefined} />
                 ))}

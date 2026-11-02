@@ -1,4 +1,4 @@
-import { Icon, Stage } from '../../kit'
+import { Icon, Stage, mount, type Child } from '../../kit'
 import './backgrounds.css'
 
 // The object stays constant so the ground's contribution is easy to see.
@@ -48,30 +48,43 @@ function Halftone() {
   </svg>
 }
 
-function Study({ study }: { study: typeof studies[number] }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(288)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => setWidth(node.clientWidth)
-    measure()
+// The stage takes its width from the column it sits in. A render can't
+// measure, so the column renders empty and the stage mounts into it once it
+// is on the page, and again whenever its width changes.
+function measured(id: string, scene: (width: number) => Child) {
+  if (typeof document === 'undefined') return
+  queueMicrotask(() => {
+    const host = document.getElementById(id)
+    if (!host) return
+    let width = 0, stop = () => {}
+    const measure = () => {
+      if (!host.isConnected) return void (observer.disconnect(), stop())
+      if (!host.clientWidth || host.clientWidth === width) return
+      width = host.clientWidth
+      stop()
+      host.replaceChildren()
+      stop = mount(host, () => scene(width))
+    }
     const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
+    measure()
+    observer.observe(host)
+  })
+}
+
+function Study({ study }: { study: typeof studies[number] }) {
+  const id = `bg-picture-${study.id}`
+  measured(id, width =>
+    <Stage specimen width={width} height={252} theme={study.id === 'dark' ? 'dark' : 'light'}>
+      {() => <div className={`bg-ground bg-ground--${study.id}`} data-crop>
+        {study.id === 'architecture' && <svg className="bg-lines" width="100%" height="100%" viewBox="0 0 400 252" preserveAspectRatio="xMidYMid slice" aria-hidden><path d="M-40 204 114 50H390V-30M-16 228 138 74H414M8 252 162 98H438" /><path d="M114 50v202M390 50 276 164H0" /></svg>}
+        {study.id === 'graphic' && <div className="bg-geometry" aria-hidden><span /><i /></div>}
+        {study.id === 'halftone' && <Halftone />}
+        {study.id === 'grain' && <svg className="bg-grain" width="100%" height="100%" aria-hidden><filter id="bg-grain"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" stitchTiles="stitch" /><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0" /></filter><rect width="100%" height="100%" filter="url(#bg-grain)" /></svg>}
+        <Digest />
+      </div>}
+    </Stage>)
   return <article className="bg-study" data-study={study.id}>
-    <div ref={ref} className="bg-picture">
-      <Stage specimen width={width} height={252} theme={study.id === 'dark' ? 'dark' : 'light'}>
-        {() => <div className={`bg-ground bg-ground--${study.id}`} data-crop>
-          {study.id === 'architecture' && <svg className="bg-lines" width="100%" height="100%" viewBox="0 0 400 252" preserveAspectRatio="xMidYMid slice" aria-hidden><path d="M-40 204 114 50H390V-30M-16 228 138 74H414M8 252 162 98H438" /><path d="M114 50v202M390 50 276 164H0" /></svg>}
-          {study.id === 'graphic' && <div className="bg-geometry" aria-hidden><span /><i /></div>}
-          {study.id === 'halftone' && <Halftone />}
-          {study.id === 'grain' && <svg className="bg-grain" width="100%" height="100%" aria-hidden><filter id="bg-grain"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" stitchTiles="stitch" /><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0" /></filter><rect width="100%" height="100%" filter="url(#bg-grain)" /></svg>}
-          <Digest />
-        </div>}
-      </Stage>
-    </div>
+    <div id={id} className="bg-picture" />
     <h2>{study.title}</h2><p>{study.note}</p>
   </article>
 }

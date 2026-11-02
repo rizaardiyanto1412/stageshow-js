@@ -1,5 +1,7 @@
 import type { Style } from '../../kit'
-import { Icon, Stage, type Act } from '../../kit'
+import { Icon, mount, Stage, type Act } from '../../kit'
+import { behavior, type Behavior } from '../../kit/render'
+import type { Box } from '../../kit'
 import './choreography.css'
 
 type Locale = { country: string; currency: string; price: string; method: string; fields: { label: string; value: string; half?: boolean }[] }
@@ -31,19 +33,10 @@ export async function localeSequence(a: Act<State>) {
   await a.wait(2900)
 }
 
-function useWidth(initialWidth: number) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(initialWidth)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => { if (node.clientWidth) setWidth(node.clientWidth) }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
+// The width React measured from the element around the stage, or its first
+// guess before it had measured (a server render, an export's first frame)
+function widthOf(box: Box | undefined, fallback: number, max = Infinity) {
+  return box?.width ? Math.min(box.width, max) : fallback
 }
 
 function Bank() {
@@ -92,24 +85,59 @@ export const choreographyLessons = [{
 }] as const
 
 export function ChoreographyComparison({ lessonId = 'dependent-starts' }: { lessonId?: string }) {
-  const [ref, width] = useWidth(704)
-  const [revision, replay] = useState(0)
   if (lessonId !== 'dependent-starts') return null
-  const stacked = width < 620
-  const cell = stacked ? width : (width - 24) / 2
-  return <section className="cy-comparison">
-    <header><div><h2>{choreographyLessons[0].title}</h2><p>{choreographyLessons[0].note}</p></div><button type="button" className="tc-replay" onClick={() => replay(value => value + 1)}>Replay pair</button></header>
-    <div ref={ref} className="cy-pair-host"><Stage<State> key={revision} width={width} height={stacked ? 976 : 476} initial={initial} poster={poster} play="once" script={localeSequence}>
-      {state => <div className="cy-pair">{[false, true].map((good, i) => <div key={String(good)} className="cy-pair-cell" style={{ width: cell, left: stacked ? 0 : i * (cell + 24), top: stacked ? i * 500 : 0 }}>
-        <span className="cy-pair-label">{good ? choreographyLessons[0].good : choreographyLessons[0].bad}</span><Checkout {...state} width={cell} good={good} top={40} />
-      </div>)}</div>}
-    </Stage></div>
+  behavior('cy-comparison', comparison)
+  return <section className="cy-comparison" data-ss-part="cy-comparison">
+    <header><div><h2>{choreographyLessons[0].title}</h2><p>{choreographyLessons[0].note}</p></div><button type="button" className="tc-replay">Replay pair</button></header>
+    <div className="cy-pair-host" />
   </section>
 }
 
-export default function Choreography() {
-  const [ref, width] = useWidth(288)
-  return <div ref={ref} className="cy-demo"><Stage<State> width={width} height={468} initial={initial} poster={poster} play="once" script={localeSequence}>
+function Pair(box?: Box) {
+  const width = widthOf(box, 704)
+  const stacked = width < 620
+  const cell = stacked ? width : (width - 24) / 2
+  return <Stage<State> width={width} height={stacked ? 976 : 476} initial={initial} poster={poster} play="once" script={localeSequence}>
+    {state => <div className="cy-pair">{[false, true].map((good, i) => <div key={String(good)} className="cy-pair-cell" style={{ width: cell, left: stacked ? 0 : i * (cell + 24), top: stacked ? i * 500 : 0 }}>
+      <span className="cy-pair-label">{good ? choreographyLessons[0].good : choreographyLessons[0].bad}</span><Checkout {...state} width={cell} good={good} top={40} />
+    </div>)}</div>}
+  </Stage>
+}
+
+// The pair is a scene of its own, mounted in its host so it sizes from the
+// host's width as React's did; Replay mounts it again, as re-keying the
+// Stage did. The page's own renders leave a mounted host's children alone,
+// so the pair keeps playing through them
+function comparison(section: HTMLElement): Behavior {
+  let stop: (() => void) | null = null
+  const host = () => section.querySelector<HTMLElement>(':scope > .cy-pair-host')!
+  const unmount = () => {
+    stop?.()
+    stop = null
+    host().replaceChildren()
+  }
+  const play = (): void => {
+    unmount()
+    stop = mount(host(), Pair)
+  }
+  const onClick = (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest('.tc-replay')) play()
+  }
+  section.addEventListener('click', onClick)
+  return {
+    update() {
+      if (!stop) play()
+    },
+    destroy() {
+      section.removeEventListener('click', onClick)
+      unmount()
+    },
+  }
+}
+
+export default function Choreography(box?: Box) {
+  const width = widthOf(box, 288, 656) // .cy-demo stops growing at 656 (choreography.css)
+  return <div className="cy-demo"><Stage<State> width={width} height={468} initial={initial} poster={poster} play="once" script={localeSequence}>
     {state => <div className="cy-scene"><Checkout {...state} width={width} wide={width >= 560} /></div>}
   </Stage></div>
 }

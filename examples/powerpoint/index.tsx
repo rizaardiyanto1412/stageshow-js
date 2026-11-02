@@ -1,4 +1,4 @@
-import type { Style } from '../../kit'
+import type { Child, Style } from '../../kit'
 import {
   AlignCenter,
   AlignJustify,
@@ -17,7 +17,7 @@ import {
   Underline,
   X,
 } from '../../kit/icons'
-import { Bar, Stage, Text, Window, type Act, type Layout } from '../../kit'
+import { Bar, Stage, Text, Window, uid, type Act, type Layout } from '../../kit'
 import './pp.css'
 
 // PowerPoint for Mac: pick slide 2 in the rail, it opens in the editor, open
@@ -59,7 +59,7 @@ const LOOK: Record<Design, { photo: Box; title: [number, number]; bullets: [numb
 }
 
 function Photo() {
-  const id = useId().replace(/:/g, '')
+  const id = uid()
   const sky = `${id}-sky`
   const sea = `${id}-sea`
   // A harbor at dusk: sky, sun, water, a far shore and a hill of rooftops.

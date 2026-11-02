@@ -28,9 +28,6 @@ async function script(a: Act<S>) {
 }
 
 export default function CursorMorphDemo() {
-  const frame = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState<HTMLElement | null>(null)
-  useEffect(() => setAt(frame.current), [])
   return (
     <Stage<S>
       width={550}
@@ -42,9 +39,9 @@ export default function CursorMorphDemo() {
       className="cm-stage"
     >
       {(s) => (
-        <div className="cm-frame" ref={frame}>
+        <div className="cm-frame">
           <Segmented className="cm-seg" items={LABELS} value={s.value} targets={LABELS.map((_, k) => `opt-${k}`)} />
-          <CursorMorph at={at} style={STYLES[s.value]} />
+          <CursorMorph style={STYLES[s.value]} />
         </div>
       )}
     </Stage>

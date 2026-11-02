@@ -196,7 +196,7 @@ export default function FigmaDemo() {
                     <div className="fg-tree">
                       {LAYERS.map((l, i) => (
                         <div
-                          key={i}
+                          key={`layer${i}`}
                           className="fg-layer"
                           data-depth={l.depth}
                           data-selected={(l.name && s.selected) || undefined}
@@ -282,7 +282,7 @@ export default function FigmaDemo() {
                         <Bar w={90} h={8} r={3} tone={5} />
                         <div className="fg-cards">
                           {[0, 1, 2].map((i) => (
-                            <span key={i} className="fg-card" />
+                            <span key={`card${i}`} className="fg-card" />
                           ))}
                         </div>
                       </div>
@@ -315,7 +315,7 @@ export default function FigmaDemo() {
                         </div>
                       </section>
                       {[44, 36, 40].map((w, i) => (
-                        <section key={i} className="fg-section">
+                        <section key={`page${i}`} className="fg-section">
                           <div className="fg-section-head">
                             <Bar w={w} h={6} tone={5} />
                             <Plus size={13} strokeWidth={1.6} className="fg-icon" />
@@ -369,7 +369,7 @@ export default function FigmaDemo() {
                         </div>
                       </section>
                       {[38, 42, 36].map((w, i) => (
-                        <section key={i} className="fg-section">
+                        <section key={`layer-section${i}`} className="fg-section">
                           <div className="fg-section-head">
                             <Bar w={w} h={6} tone={5} />
                             <Plus size={13} strokeWidth={1.6} className="fg-icon" />

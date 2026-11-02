@@ -1,5 +1,7 @@
 import type { Child } from '../kit'
-import { Collapse, Fly, Roll, Stage, type Act, type Rect } from '../kit'
+import { Collapse, Fly, refresh, Roll, Stage, type Act, type Rect } from '../kit'
+import type { Box } from '../kit/mount'
+import { behavior, type Behavior } from '../kit/render'
 import { MacPointer } from '../kit/cursors'
 import './contrasts.css'
 import { RelationshipComparison, relationshipLessons } from './relationships'
@@ -7,7 +9,7 @@ import { ContinuityComparison, continuityLessons } from './continuity'
 import { TextComparison, textLessons } from './text-settle'
 import { CompositionComparison, compositionLessons } from './composition'
 import { EdgeComparison, edgeLessons } from './edges'
-import { SceneComparison, sceneLessons } from './scenes'
+import { SceneComparison, sceneCompactWidth, sceneLessons } from './scenes'
 import { StyleComparison, styleLessons } from './style'
 import { DetailComparison, detailLessons } from './details'
 import { ChoreographyComparison, choreographyLessons } from '../examples/choreography'
@@ -164,13 +166,12 @@ function Scene({ kind, good, state }: { kind: Kind; good: boolean; state: State 
 }
 
 function Comparison({ lesson }: { lesson: typeof cases[number] }) {
-  const [revision, replay] = useState(0)
   const { kind, title, note, bad, good } = lesson
   const height = kind === 'space' ? 244 : kind === 'reset' ? 232 : 150
   const sequence = scripts[kind]
   return <section>
-    <header><div><h2>{title}</h2><p>{note}</p></div><button className="tc-replay" type="button" onClick={() => replay(n => n + 1)} aria-label={`Replay ${title.toLowerCase()}`}>Replay pair</button></header>
-    <Stage<State> key={revision} width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={kind === 'exit' ? initial : poster} script={sequence ?? script} play={sequence ? 'once' : 'loop'} className="tc-stage">
+    <header><div><h2>{title}</h2><p>{note}</p></div><button className="tc-replay" type="button" aria-label={`Replay ${title.toLowerCase()}`}>Replay pair</button></header>
+    <Stage<State> width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={kind === 'exit' ? initial : poster} script={sequence ?? script} play={sequence ? 'once' : 'loop'} className="tc-stage">
       {(state, rect) => <><div className="tc-pair" data-kind={kind}>{[false, true].map(corrected => <figure key={String(corrected)}>
         <div className="tc-visual"><Scene kind={kind} good={corrected} state={state} /></div>
         <figcaption>{corrected ? good : bad}</figcaption>
@@ -179,23 +180,56 @@ function Comparison({ lesson }: { lesson: typeof cases[number] }) {
   </section>
 }
 
-export default function Contrasts() {
-  const motionLessons = [...cases.map(lesson => ({ id: lesson.kind, title: lesson.title })), ...relationshipLessons, ...continuityLessons, ...textLessons, ...edgeLessons, ...choreographyLessons]
-  const lessons = [...motionLessons, ...compositionLessons, ...sceneLessons, ...styleLessons, ...detailLessons]
-  const [selected, select] = useState(() => {
-    const value = typeof window === 'undefined' ? null : new URLSearchParams(location.search).get('lesson')
-    return lessons.some(lesson => lesson.id === value) ? value! : 'label'
-  })
-  const choose = (value: string) => {
-    select(value)
-    const url = new URL(location.href)
-    url.searchParams.set('lesson', value)
-    history.replaceState(null, '', url)
-    if (parent !== window) parent.postMessage({ type: 'stageshow:status', lesson: value }, location.origin)
-  }
+const motionLessons = [...cases.map(lesson => ({ id: lesson.kind, title: lesson.title })), ...relationshipLessons, ...continuityLessons, ...textLessons, ...edgeLessons, ...choreographyLessons]
+const lessons = [...motionLessons, ...compositionLessons, ...sceneLessons, ...styleLessons, ...detailLessons]
+
+function Lesson({ selected, compactWidth }: { selected: string; compactWidth: number }) {
   const original = cases.find(lesson => lesson.kind === selected)
-  return <div className="tc-lessons">
-    <div className="tc-picker"><label htmlFor="comparison-principle">Principle</label><select id="comparison-principle" value={selected} onChange={event => choose(event.target.value)}><optgroup label="Motion">{motionLessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</optgroup><optgroup label="UI details">{compositionLessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</optgroup><optgroup label="Whole compositions">{sceneLessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</optgroup><optgroup label="Style">{styleLessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</optgroup><optgroup label="Details">{detailLessons.map(lesson => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}</optgroup></select></div>
-    {original ? <Comparison key={selected} lesson={original} /> : choreographyLessons.some(lesson => lesson.id === selected) ? <ChoreographyComparison /> : relationshipLessons.some(lesson => lesson.id === selected) ? <RelationshipComparison key={selected} lessonId={selected} /> : selected === 'text-settle' ? <TextComparison /> : compositionLessons.some(lesson => lesson.id === selected) ? <CompositionComparison key={selected} lessonId={selected} /> : sceneLessons.some(lesson => lesson.id === selected) ? <SceneComparison key={selected} lessonId={selected} /> : styleLessons.some(lesson => lesson.id === selected) ? <StyleComparison key={selected} lessonId={selected} /> : detailLessons.some(lesson => lesson.id === selected) ? <DetailComparison key={selected} lessonId={selected} /> : edgeLessons.some(lesson => lesson.id === selected) ? <EdgeComparison key={selected} lessonId={selected} /> : <ContinuityComparison key={selected} lessonId={selected} />}
+  return original ? <Comparison lesson={original} /> : choreographyLessons.some(lesson => lesson.id === selected) ? <ChoreographyComparison /> : relationshipLessons.some(lesson => lesson.id === selected) ? <RelationshipComparison lessonId={selected} /> : selected === 'text-settle' ? <TextComparison /> : compositionLessons.some(lesson => lesson.id === selected) ? <CompositionComparison lessonId={selected} /> : sceneLessons.some(lesson => lesson.id === selected) ? <SceneComparison lessonId={selected} compactWidth={compactWidth} /> : styleLessons.some(lesson => lesson.id === selected) ? <StyleComparison lessonId={selected} /> : detailLessons.some(lesson => lesson.id === selected) ? <DetailComparison lessonId={selected} /> : edgeLessons.some(lesson => lesson.id === selected) ? <EdgeComparison lessonId={selected} /> : <ContinuityComparison lessonId={selected} />
+}
+
+// The page's own state: the lesson showing, and how many times it has been
+// replayed. Each replay renders the lesson under a new key, so its stages
+// start over as re-keying them did
+const fromUrl = typeof window === 'undefined' ? null : new URLSearchParams(location.search).get('lesson')
+let selected = lessons.some(lesson => lesson.id === fromUrl) ? fromUrl! : 'label'
+let replays = 0
+
+// The picker and the Replay buttons change the page's state and render it again
+function controls(root: HTMLElement): Behavior {
+  const onChange = (event: Event) => {
+    selected = (event.target as HTMLSelectElement).value
+    const url = new URL(location.href)
+    url.searchParams.set('lesson', selected)
+    history.replaceState(null, '', url)
+    if (parent !== window) parent.postMessage({ type: 'stageshow:status', lesson: selected }, location.origin)
+    refresh(root)
+  }
+  // A lesson that is a part of its own (choreography's pair) replays itself
+  const onClick = (event: MouseEvent) => {
+    const replay = event.target instanceof Element ? event.target.closest('.tc-replay') : null
+    if (!replay || replay.closest('[data-ss-part]') !== root) return
+    replays++
+    refresh(root)
+  }
+  root.addEventListener('change', onChange)
+  root.addEventListener('click', onClick)
+  return {
+    destroy() {
+      root.removeEventListener('change', onChange)
+      root.removeEventListener('click', onClick)
+    },
+  }
+}
+
+export default function Contrasts(box?: Box) {
+  behavior('contrasts', controls)
+  // A scene lesson's compact design is as wide as its frame, which is at
+  // most 540px of the page (scenes.tsx)
+  const compactWidth = sceneCompactWidth(Math.min(540, box?.width ?? 540))
+  const options = (group: readonly { id: string; title: string }[]) => group.map(lesson => <option key={lesson.id} value={lesson.id} selected={lesson.id === selected}>{lesson.title}</option>)
+  return <div className="tc-lessons" data-ss-part="contrasts">
+    <div className="tc-picker"><label htmlFor="comparison-principle">Principle</label><select id="comparison-principle"><optgroup label="Motion">{options(motionLessons)}</optgroup><optgroup label="UI details">{options(compositionLessons)}</optgroup><optgroup label="Whole compositions">{options(sceneLessons)}</optgroup><optgroup label="Style">{options(styleLessons)}</optgroup><optgroup label="Details">{options(detailLessons)}</optgroup></select></div>
+    <div className="tc-lesson" key={`${selected}-${replays}`}><Lesson selected={selected} compactWidth={compactWidth} /></div>
   </div>
 }

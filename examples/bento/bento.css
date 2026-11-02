@@ -116,6 +116,11 @@
     background: transparent;
   }
 
+  /* The stat's text, in a Stage the tile's size, keeps the page's type */
+  & .kb-stage--text > .ss-stage {
+    font-family: inherit;
+  }
+
   /* ---- Receipts (hero) ---- */
 
   & .kb-window {
@@ -553,13 +558,13 @@
   }
 
   & .kb-merchant-icon {
-    display: block;
+    display: grid;
+    place-items: center;
     width: 20px;
     height: 20px;
     flex-shrink: 0;
     border-radius: 5px;
-    /* Notion's tile is white like the pill: a hairline keeps its edge */
-    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+    color: #fff;
   }
 
   & .kb-account {

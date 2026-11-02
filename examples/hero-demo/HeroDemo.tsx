@@ -224,7 +224,8 @@ export function HeroDemo() {
           <div className="hd-highlight" data-show={s.highlight} style={box(inset(rect('export'), 4))} />
           <div className="hd-dragbox" data-show={s.dragging || undefined} style={s.drag ? box(s.drag) : undefined} />
           <div className="hd-area" data-show={s.area.show} style={box(s.area.r)} />
-          {s.selection && <div className="hd-selection" style={{ left: s.selection.x, top: s.selection.y, width: s.selection.width }} />}
+          {/* Always in the markup, so the markers after it keep their own nodes */}
+          <div className="hd-selection" hidden={!s.selection} style={s.selection ? { left: s.selection.x, top: s.selection.y, width: s.selection.width } : undefined} />
 
           <div className="hd-marker" data-show style={{ left: rect('metric-0').x + 28, top: rect('metric-0').y + 14 }}>
             1

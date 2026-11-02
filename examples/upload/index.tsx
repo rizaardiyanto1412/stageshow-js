@@ -1,6 +1,7 @@
 import type { Child } from '../../kit'
 import { ChevronLeft, ChevronRight, File, Folder, LayoutGrid, List, Search, Share } from '../../kit/icons'
 import { Bar, Collapse, Count, Stage, States, Window, type Act, type Layout, type Point, Meter } from '../../kit'
+import { behavior, mark } from '../../kit/render'
 import './upload.css'
 
 // A file storage app, list view. A PDF sits on the desktop beside the
@@ -226,32 +227,40 @@ function PdfIcon({ small }: { small?: boolean }) {
 /** The drag image follows the cursor on the drag's own frame callback, and
  *  lights whatever [data-drop] it is over. */
 function DragImage({ ghost, children }: { ghost: Ghost; children: Child }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const over = useRef<HTMLElement | null>(null)
+  behavior('up-drag', lighting)
   const following = ghost.on && !ghost.dropped
   const { x: ox, y: oy } = ghost.off
   const { x, y } = ghost.at
-  useLayoutEffect(() => {
-    const root = ref.current?.closest<HTMLElement>('.ss-stage')
-    let next: HTMLElement | null = null
-    if (following && root) {
-      const box = root.getBoundingClientRect()
-      const scale = box.width / root.offsetWidth || 1
-      const hit = document.elementFromPoint(box.left + x * scale, box.top + y * scale)?.closest<HTMLElement>('[data-drop]') ?? null
-      if (hit && root.contains(hit)) next = hit
-    }
-    if (next !== over.current) {
-      over.current?.removeAttribute('data-over')
-      next?.setAttribute('data-over', '')
-      over.current = next
-    }
-  }, [following, x, y])
-  useLayoutEffect(() => () => over.current?.removeAttribute('data-over'), [])
   return (
-    <div ref={ref} className="up-drag" data-show={following || undefined} data-dropped={ghost.dropped || undefined} style={{ transform: `translate(${x - ox}px, ${y - oy}px)` }} aria-hidden>
+    <div className="up-drag" data-ss-part="up-drag" data-x={x} data-y={y} data-show={following || undefined} data-dropped={ghost.dropped || undefined} style={{ transform: `translate(${x - ox}px, ${y - oy}px)` }} aria-hidden>
       <div className="up-drag__inner" style={{ transformOrigin: `${ox}px ${oy}px` }}>
         {children}
       </div>
     </div>
   )
+}
+
+// After each render, light the [data-drop] under the drag point, if any
+function lighting(el: HTMLElement) {
+  let over: HTMLElement | null = null
+  return {
+    update() {
+      const root = el.closest<HTMLElement>('.ss-stage')
+      let next: HTMLElement | null = null
+      if (el.hasAttribute('data-show') && root) {
+        const box = root.getBoundingClientRect()
+        const scale = box.width / root.offsetWidth || 1
+        const hit = document.elementFromPoint(box.left + Number(el.dataset.x) * scale, box.top + Number(el.dataset.y) * scale)?.closest<HTMLElement>('[data-drop]') ?? null
+        if (hit && root.contains(hit)) next = hit
+      }
+      if (next !== over) {
+        mark(over, 'data-over', null)
+        mark(next, 'data-over')
+        over = next
+      }
+    },
+    destroy() {
+      mark(over, 'data-over', null)
+    },
+  }
 }

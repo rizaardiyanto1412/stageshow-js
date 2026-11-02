@@ -1,4 +1,4 @@
-import { Bar, Chart, Count, Stage, Swap, Window, type Act, type Layout } from '../../kit'
+import { Bar, Chart, Count, Stage, Swap, Window, type Act, type Child, type Layout } from '../../kit'
 import './excel.css'
 
 // Excel for Mac: select B2:B7, click AutoSum, the total lands in B8, the

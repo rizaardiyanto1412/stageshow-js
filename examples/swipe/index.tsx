@@ -126,7 +126,9 @@ export default function SwipeDemo() {
                     <div className="sw-cell" data-target={picked ? 'row' : undefined}>
                       {/* Only while the row is off its rest: at rest its antialiased edges would show a purple hairline */}
                       {picked && (s.dx !== 0 || s.throw) && <div className="sw-action" />}
+                      {/* Keyed, so the action layer appearing before it doesn't replace it */}
                       <Row
+                        data-ss-key={picked ? 'sw-picked' : undefined}
                         pad={0}
                         className="sw-row"
                         unread={m.unread}

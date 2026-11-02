@@ -1,5 +1,6 @@
 import type { Style } from '../../kit'
-import { Phone, LockScreen, Roll, Stage, Swap, type Act } from '../../kit'
+import { Phone, LockScreen, Roll, Stage, Swap, uid, type Act } from '../../kit'
+import { behavior } from '../../kit/render'
 import './island.css'
 
 // A food delivery's Live Activity in the Dynamic Island, on the top of an
@@ -71,25 +72,43 @@ function Bag({ size }: { size: number }) {
   )
 }
 
-const boxStyle = (b: Box, grow: boolean): Style => ({
+const boxStyle = (b: Box): Style => ({
   left: b.l,
   top: b.t,
   width: b.w,
   height: b.h,
   borderRadius: b.r,
-  transitionDuration: `${grow ? GROW.ms : SHRINK.ms}ms`,
-  transitionTimingFunction: grow ? GROW.ease : SHRINK.ease,
-  // Shrinking waits for the content to clear, so nothing paints past the edge
-  transitionDelay: grow ? '0ms' : '120ms',
 })
 
+// Spring by direction: overshoot only when growing (an overshoot while
+// shrinking would dip the shape inside the bezel's own island). The
+// direction comes from the mode the shape last showed, so the behavior sets
+// the timing on each render as it lands.
+function springing(el: HTMLElement) {
+  let mode = el.dataset.mode as Mode
+  let grow = true
+  const time = (shape: HTMLElement) => {
+    shape.style.transitionDuration = `${grow ? GROW.ms : SHRINK.ms}ms`
+    shape.style.transitionTimingFunction = grow ? GROW.ease : SHRINK.ease
+    // Shrinking waits for the content to clear, so nothing paints past the edge
+    shape.style.transitionDelay = grow ? '0ms' : '120ms'
+  }
+  time(el)
+  return {
+    morph(next: Element) {
+      const now = (next as HTMLElement).dataset.mode as Mode
+      if (now !== mode) {
+        grow = SIZE[now] > SIZE[mode]
+        mode = now
+      }
+      time(next as HTMLElement)
+    },
+  }
+}
+
 function Island({ s }: { s: S }) {
-  const gooId = useId()
-  // Spring by direction: overshoot only when growing (an overshoot while
-  // shrinking would dip the shape inside the bezel's own island)
-  const last = useRef<{ mode: Mode; grow: boolean }>({ mode: s.mode, grow: true })
-  if (last.current.mode !== s.mode) last.current = { mode: s.mode, grow: SIZE[s.mode] > SIZE[last.current.mode] }
-  const grow = last.current.grow
+  behavior('di-shape', springing)
+  const gooId = uid()
   // In the plain pill, tuck the dormant circle inside its trailing cap.
   // Its compact position would protrude beyond the narrower idle shape.
   const budLeft = s.mode === 'split' ? BUD.l : s.mode === 'idle' ? BASE.l + BASE.w - BUD.d : BUD.l - 30
@@ -105,7 +124,7 @@ function Island({ s }: { s: S }) {
         </filter>
       </svg>
       <div className="di-island__shapes" style={{ filter: `url(#${gooId})` }}>
-        <span className="di-island__shape" style={boxStyle(GEO[s.mode], grow)} />
+        <span className="di-island__shape" data-ss-part="di-shape" data-mode={s.mode} style={boxStyle(GEO[s.mode])} />
         <span
           className="di-island__bud"
           data-on={s.mode === 'split' || undefined}

@@ -1,6 +1,7 @@
 import type { Child } from '../../kit'
-import { Count, Icon, Phone, Stage, reduced } from '../../kit'
+import { Count, Icon, Phone, Stage, uid } from '../../kit'
 import type { Act } from '../../kit'
+import type { Box } from '../../kit'
 import './grid.css'
 
 // A staggered pair, light: the features section of Wayline, an invented
@@ -47,40 +48,17 @@ function Tile({ area, title, children, picture, photo }: { area: string; title: 
   )
 }
 
-function useInView<T extends Element>(delay: number) {
-  const ref = useRef<T>(null)
-  const [seen, setSeen] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let t = 0
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return
-      io.disconnect()
-      t = window.setTimeout(() => setSeen(true), delay)
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => {
-      io.disconnect()
-      clearTimeout(t)
-    }
-  }, [delay])
-  return [ref, seen] as const
-}
-
-function usePictureWidth() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState({ width: 340, gutter: 26 })
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => setSize({ width: node.clientWidth, gutter: parseFloat(getComputedStyle(node).getPropertyValue('--pad')) })
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, size] as const
+// Each tile's width and gutter come from the host's (grid.css's grid and
+// --pad, worked out here); without a host (a server render), every picture
+// is 340 wide with a 26px gutter.
+type Tiles = { width: number; gutter: number; statHeight: number }
+function tiles(box?: Box): Tiles {
+  if (!box) return { width: 340, gutter: 26, statHeight: 250 }
+  const grid = Math.min(box.width, 984)
+  if (box.width < 600) return { width: Math.round(grid), gutter: 26, statHeight: 250 }
+  const wide = box.width >= 900
+  const gap = wide ? 20 : 18
+  return { width: Math.round((grid - gap) / 2), gutter: wide ? 36 : 30, statHeight: wide ? 320 : 310 }
 }
 
 /* ---------------- Coast (the hero picture) ---------------- */
@@ -127,8 +105,8 @@ const lens = (L: number, w: number) => {
 const CORNERS = [[0, 0], [T, 0], [0, T], [T, T]]
 
 function Azulejo() {
-  const tileId = useId()
-  const friezeId = useId()
+  const tileId = uid()
+  const friezeId = uid()
   const P = 300 // the field's top edge, on a row of tile corners
   const F = 40 // the frieze: a row of half tiles
   return (
@@ -199,22 +177,27 @@ function Private() {
 
 /* ---------------- Distance (stat) ---------------- */
 
-function Distance() {
-  const reduced = reduced()
-  const [ref, seen] = useInView<HTMLDivElement>(LEAD + 2 * STEP)
+// The page has no state of its own to count up when the grid scrolls in,
+// so the stat's text sits in a Stage the tile's size, which plays the beat
+// like every other tile (sg-stage--text keeps the page's type)
+function Distance({ width, height }: { width: number; height: number }) {
   return (
     <Tile area="stat" title={null}>
-      <div ref={ref} className="sg-stat">
-        <span className="sg-stat-lead">This year you went</span>
-        <span className="sg-stat-number">
-          <span className="sg-stat-value">
-            <span className="sg-stat-sizer" aria-hidden>38,604</span>
-            <Count value={seen || reduced ? 38604 : 0} duration={1600} />
-          </span>
-          <span className="sg-stat-unit">km</span>
-        </span>
-        <span className="sg-stat-label">measured from where your photos were taken.</span>
-      </div>
+      <Stage<Beat> width={width} height={height} initial={before} poster={after} play="once" script={beat(2)} className="sg-stage sg-stage--text">
+        {(s) => (
+          <div className="sg-stat">
+            <span className="sg-stat-lead">This year you went</span>
+            <span className="sg-stat-number">
+              <span className="sg-stat-value">
+                <span className="sg-stat-sizer" aria-hidden>38,604</span>
+                <Count value={s.on ? 38604 : 0} duration={1600} />
+              </span>
+              <span className="sg-stat-unit">km</span>
+            </span>
+            <span className="sg-stat-label">measured from where your photos were taken.</span>
+          </div>
+        )}
+      </Stage>
     </Tile>
   )
 }
@@ -226,14 +209,13 @@ const WAVE = Array.from({ length: 30 }, (_, i) => {
   return Math.min(1, v)
 })
 
-function Voice() {
-  const [ref, { width }] = usePictureWidth()
+function Voice({ width }: { width: number }) {
   return (
     <Tile
       area="voice"
       title={<b>Say it instead.</b>}
       picture={
-        <div ref={ref} className="sg-picture sg-picture--small">
+        <div className="sg-picture sg-picture--small">
           <Stage<Beat> width={width} height={206} initial={before} poster={after} play="once" script={beat(3)} className="sg-stage">
             {(s) => (
               <div className="sg-note" data-on={s.on || undefined}>
@@ -268,14 +250,13 @@ function Voice() {
 
 /* ---------------- Book (object) ---------------- */
 
-function Book() {
-  const [ref, { width }] = usePictureWidth()
+function Book({ width }: { width: number }) {
   return (
     <Tile
       area="book"
       title={<b>Print the trip.</b>}
       picture={
-        <div ref={ref} className="sg-picture sg-picture--small">
+        <div className="sg-picture sg-picture--small">
           <Stage<Beat> width={width} height={190} initial={before} poster={after} play="once" script={beat(4)} className="sg-stage">
             {(s) => (
               <div className="sg-books" data-on={s.on || undefined}>
@@ -298,14 +279,13 @@ function Book() {
 
 /* ---------------- Day (hero UI: the one phone) ---------------- */
 
-function Day() {
-  const [ref, { width, gutter }] = usePictureWidth()
+function Day({ width, gutter }: { width: number; gutter: number }) {
   return (
     <Tile
       area="day"
       title={<b>A page for every day.</b>}
       picture={
-        <div ref={ref} className="sg-picture sg-picture--phone">
+        <div className="sg-picture sg-picture--phone">
           <Stage<Beat> width={width} height={400} initial={before} poster={after} play="once" script={beat(5)} className="sg-stage">
             {(s) => (
               // Centered in its tile: the one device in the grid stands in
@@ -350,19 +330,20 @@ function Day() {
   )
 }
 
-export default function StaggeredBento() {
+export default function StaggeredBento(box?: Box) {
+  const t = tiles(box)
   return (
     <div className="staggered-bento">
       <div className="sg-grid">
         <div className="sg-col">
           <Coast />
-          <Distance />
-          <Book />
+          <Distance width={t.width} height={t.statHeight} />
+          <Book width={t.width} />
         </div>
         <div className="sg-col">
           <Private />
-          <Voice />
-          <Day />
+          <Voice width={t.width} />
+          <Day width={t.width} gutter={t.gutter} />
         </div>
       </div>
     </div>

@@ -27,11 +27,10 @@ function UnstableLabel({ added }: State) {
 }
 
 export function TextComparison() {
-  const [revision, replay] = useState(0)
   const lesson = textLessons[0]
   return <section className="ts-lesson">
-    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button" onClick={() => replay(n => n + 1)}>Replay pair</button></header>
-    <Stage<State> key={revision} width={704} height={150} compact={{ below: 704, width: 340, height: 316 }} initial={{ added: false }} poster={{ added: true }} script={sequence} play="once" className="tc-stage">
+    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button">Replay pair</button></header>
+    <Stage<State> width={704} height={150} compact={{ below: 704, width: 340, height: 316 }} initial={{ added: false }} poster={{ added: true }} script={sequence} play="once" className="tc-stage">
       {state => <div className="tc-pair">{[false, true].map(good => <figure key={String(good)}>
         <div className="tc-visual"><div className="ts-line" data-good={good || undefined}>
           <span className="ts-label">{good ? <States value={state.added ? 'added' : 'empty'} states={labels} align="start" /> : <UnstableLabel {...state} />}</span>

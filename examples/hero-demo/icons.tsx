@@ -1,4 +1,6 @@
 // The toolbar's icons, copied from the real product's toolbar.
+import type { Child } from '../../kit/jsx-runtime'
+
 
 const P = { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 

@@ -1,4 +1,5 @@
 import type { Style } from '../../kit'
+import type { Box } from '../../kit'
 import { Badge, Check, Icon, Roll, Segmented, Stage, Toggle, Window, type Act } from '../../kit'
 import './grid.css'
 
@@ -191,21 +192,14 @@ function composition(w: number): Tile[] {
   ]
 }
 
-export default function HeroGrid() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(0)
-  useLayoutEffect(() => {
-    const element = ref.current
-    if (!element) return
-    const measure = () => setWidth(Math.floor(element.getBoundingClientRect().width))
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
+// The grid fills the host up to its max-width (grid.css) and composes
+// itself for that width. Without a host (a server render), it composes at
+// its full width.
+export default function HeroGrid(box?: Box) {
+  const width = Math.floor(Math.min(box?.width ?? 680, 680))
   const tiles = width ? composition(width) : []
   const height = tiles.length ? Math.max(...tiles.map(t => t.y + t.h)) : 0
-  return <div ref={ref} className="hero-grid" style={{ height: height || undefined }} aria-label="A hero grid of product details">
+  return <div className="hero-grid" style={{ height: height || undefined }} aria-label="A hero grid of product details">
     {tiles.map(({ name, x, y, w, h, component: Picture }) => <figure key={name} className="hg-tile" aria-label={name} style={at(x, y, w, h)}><Picture w={w} h={h} /></figure>)}
   </div>
 }

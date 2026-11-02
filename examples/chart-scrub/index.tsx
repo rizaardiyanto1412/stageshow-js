@@ -1,4 +1,5 @@
 import { Chart, Roll, Stage, Window, chartPoints, type Act } from '../../kit'
+import { behavior } from '../../kit/render'
 import './scrub.css'
 
 // Scrubbing a chart: the pointer runs along a revenue line and the headline
@@ -90,8 +91,22 @@ function yOn(path: SVGPathElement | null | undefined, x: number) {
   return path.getPointAtLength(hi).y
 }
 
+// The dot rides the drawn curve: its top is read off the live line's path
+// under the hairline, after each render and before each next one lands
+function riding(el: HTMLElement) {
+  const place = (dot: HTMLElement) => {
+    if (dot.dataset.x === undefined) return
+    const y = yOn(el.parentElement?.querySelector<SVGPathElement>('.ss-chart__line'), Number(dot.dataset.x))
+    if (y !== null) dot.style.top = `${y}px`
+  }
+  return {
+    morph: (next: Element) => place(next as HTMLElement),
+    update: () => place(el),
+  }
+}
+
 export default function ChartScrub() {
-  const plot = useRef<HTMLDivElement>(null)
+  behavior('cs-dot', riding)
   return (
     <Stage<S> width={640} height={400} compact={{ below: 640, width: 358, height: 400 }} initial={{ day: null, x: null }} poster={{ day: 13, x: null }} script={script} cursor={{ at: { x: 560, y: 360 } }} className="cs">
       {(s, _rect, layout) => {
@@ -101,7 +116,8 @@ export default function ChartScrub() {
         // on the curve beneath it
         const hx = s.x ?? (s.day === null ? null : pts[s.day]!.x)
         const on = s.day !== null
-        const hy = hx === null ? null : (yOn(plot.current?.querySelector<SVGPathElement>('.ss-chart__line'), hx) ?? pts[s.day ?? 0]!.y)
+        // (the dot's behavior moves it onto the drawn curve; this is the day's point)
+        const hy = hx === null ? null : pts[s.day ?? 0]!.y
         const p = hx === null || hy === null ? null : { x: hx, y: hy }
         return (
           <Window title="Revenue" className="cs-win">
@@ -114,10 +130,10 @@ export default function ChartScrub() {
                   <Roll stagger={25}>{money(s.day === null ? TOTAL : DAYS[s.day]!)}</Roll>
                 </div>
               </div>
-              <div ref={plot} className="cs-plot" data-target="plot" data-cursor="crosshair" style={{ width: w, height: H }}>
+              <div className="cs-plot" data-target="plot" data-cursor="crosshair" style={{ width: w, height: H }}>
                 <Chart data={DAYS} width={w} height={H} dot={false} />
                 <span className="cs-hair" data-on={p && on ? '' : undefined} style={p ? { left: p.x } : undefined} />
-                <span className="cs-dot" data-on={p && on ? '' : undefined} style={p ? { left: p.x, top: p.y } : undefined} />
+                <span className="cs-dot" data-ss-part="cs-dot" data-x={p?.x} data-on={p && on ? '' : undefined} style={p ? { left: p.x, top: p.y } : undefined} />
               </div>
               <div className="cs-axis" style={{ width: w }}>
                 <span>Oct 15</span>

@@ -163,7 +163,7 @@ export default function SpotifyDemo() {
                     { art: 6, t: 52, m: 58 },
                     { art: 2, t: 68, m: 42 },
                   ].map((p, i) => (
-                    <div key={i} className="spt-lib-row" data-on={p.on || undefined}>
+                    <div key={`lib${i}`} className="spt-lib-row" data-on={p.on || undefined}>
                       <Art n={p.art} className="spt-art--lib" />
                       {!compact && (
                         <span className="spt-lines">
@@ -192,7 +192,7 @@ export default function SpotifyDemo() {
 
                 <div className="spt-actions">
                   <span className="spt-bigplay">
-                    <Pause size={18} strokeWidth={0} fill="currentColor" />
+                    <Pause size={18} strokeWidth={0} style={{ fill: 'currentColor' }} />
                   </span>
                   <Shuffle size={20} strokeWidth={2} className="spt-faint-icon" />
                   <CirclePlus size={20} strokeWidth={2} className="spt-faint-icon" />
@@ -215,7 +215,7 @@ export default function SpotifyDemo() {
                     const on = r.id === s.playing
                     return (
                       <div
-                        key={i}
+                        key={`row${i}`}
                         className="spt-row"
                         data-target={r.id ? `row-${r.id}` : undefined}
                         data-playing={on || undefined}
@@ -263,7 +263,7 @@ export default function SpotifyDemo() {
                 </span>
                 <span className="spt-now-text">
                   {(['a', 'b'] as Id[]).map((id) => (
-                    <span key={id} className="spt-now-song" data-on={s.playing === id || undefined} aria-hidden={s.playing !== id || undefined}>
+                    <span key={`now-${id}`} className="spt-now-song" data-on={s.playing === id || undefined} aria-hidden={s.playing !== id || undefined}>
                       <span className="spt-now-title">{SONGS[id].title}</span>
                       <span className="spt-now-artist">{SONGS[id].artist}</span>
                     </span>
@@ -275,18 +275,18 @@ export default function SpotifyDemo() {
               <div className="spt-transport">
                 <div className="spt-controls">
                   <Shuffle size={16} strokeWidth={2} className="spt-faint-icon" />
-                  <SkipBack size={16} strokeWidth={0} fill="currentColor" className="spt-ctl" />
+                  <SkipBack size={16} strokeWidth={0} style={{ fill: 'currentColor' }} className="spt-ctl" />
                   <span className="spt-playbtn">
-                    <Pause size={14} strokeWidth={0} fill="currentColor" />
+                    <Pause size={14} strokeWidth={0} style={{ fill: 'currentColor' }} />
                   </span>
-                  <SkipForward size={16} strokeWidth={0} fill="currentColor" className="spt-ctl" />
+                  <SkipForward size={16} strokeWidth={0} style={{ fill: 'currentColor' }} className="spt-ctl" />
                   <Repeat size={16} strokeWidth={2} className="spt-faint-icon" />
                 </div>
                 <div className="spt-progress">
                   <span className="spt-t spt-t--start">{fmt(s.elapsed)}</span>
                   <span className="spt-track" data-target="progress">
                     <span
-                      key={s.playing}
+                      key={`fill-${s.playing}`}
                       className="spt-fill"
                       style={{ clipPath: `inset(0 ${(1 - s.elapsed / song.dur) * 100}% 0 0 round 2px)` }}
                     />

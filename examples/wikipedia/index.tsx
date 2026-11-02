@@ -1,5 +1,6 @@
 import type { Child } from '../../kit'
 import { Popover, Stage, Swap, Window, type Act, type Layout } from '../../kit'
+import { behavior, mark } from '../../kit/render'
 import './wiki.css'
 
 // Wikipedia (Vector 2022) in a browser, for a docs page (800 wide). Story:
@@ -126,12 +127,12 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
   const compact = layout === 'compact'
   // The kit's browser chrome draws its back arrow without a target; name it
   // here so the script can aim at it (see the report: a kit gap).
-  const nameBack = useCallback((el: HTMLSpanElement | null) => {
-    el?.closest('.ss-stage')?.querySelector('.ss-window__nav .ss-window__chev')?.setAttribute('data-target', 'back')
-  }, [])
+  behavior('wk-back', (el) => ({
+    update: () => mark(el.closest('.ss-stage')?.querySelector('.ss-window__nav .ss-window__chev'), 'data-target', 'back'),
+  }))
   return (
     <Window url={`en.wikipedia.org/wiki/${s.page === 'fuji' ? 'Mount_Fuji' : 'Lake_Kawaguchi'}`} nav className="wk-window">
-      <span ref={nameBack} hidden />
+      <span data-ss-part="wk-back" hidden />
       <div className="wk-page">
         <Header s={s} compact={compact} />
         <div className="wk-pages" data-crop>
@@ -176,7 +177,7 @@ function Header({ s, compact }: { s: S; compact: boolean }) {
               const r = RESULTS[set][i]
               return (
                 <div key={i} className="wk-result" data-target={i === 0 ? 'result' : undefined} data-cursor="hand">
-                  <Swap id={set} duration={360} className="wk-swap" style={{ width: '100%' }}>
+                  <Swap id={`${i}-${set}`} duration={360} className="wk-swap" style={{ width: '100%' }}>
                     <span className="wk-result__inner">
                       <ThumbImage kind={r.thumb} />
                       <span className="wk-result__text">

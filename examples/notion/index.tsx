@@ -205,7 +205,8 @@ function Page({ s }: { s: S }) {
         </span>
 
         <div className="nt-layer nt-text" data-show={!s.todo || undefined}>
-          {s.slash && <span className="nt-slash">/</span>}
+          {/* Always in the markup, so the patcher keeps the caret beside it */}
+          <span className="nt-slash" hidden={!s.slash}>/</span>
           <span
             className="nt-caret"
             data-show={(s.focus && !s.todo) || undefined}
@@ -227,7 +228,8 @@ function Page({ s }: { s: S }) {
             <Tick size={12} strokeWidth={3.25} />
           </span>
           <span className="nt-todo__text">
-            {s.task}
+            {/* Wrapped so the caret and placeholder keep their nodes when the first letter lands */}
+            <span>{s.task}</span>
             <span
               className="nt-caret"
               data-show={(s.focus && s.todo) || undefined}

@@ -1,4 +1,5 @@
 import { Connector, Icon, Stage, States, type Act } from '../../kit'
+import { behavior, mark } from '../../kit/render'
 import './composed.css'
 
 
@@ -6,18 +7,29 @@ import './composed.css'
 // rather than drawing separate segments simultaneously. Its arrow follows the
 // real transition completion, including a paused host and reduced motion.
 function UsageDelivery({ path, to, show }: { path: string; to: { x: number; y: number }; show: boolean }) {
-  const line = useRef<SVGPathElement>(null), [arrived, setArrived] = useState(false)
-  useLayoutEffect(() => {
-    const element = line.current
-    setArrived(false)
-    if (!element || !show) return
-    const check = () => { if (Math.abs(parseFloat(getComputedStyle(element).strokeDashoffset)) < .0001) setArrived(true) }
-    const finish = (event: TransitionEvent) => { if (event.target === element && event.propertyName === 'stroke-dashoffset') check() }
-    element.addEventListener('transitionend', finish); element.addEventListener('transitioncancel', finish); check()
-    return () => { element.removeEventListener('transitionend', finish); element.removeEventListener('transitioncancel', finish) }
-  }, [path, show])
+  behavior('an-usage-delivery', delivering)
   const arrow = `M${to.x+6} ${to.y-4}L${to.x} ${to.y}L${to.x+6} ${to.y+4}`
-  return <svg className="ss-connector an-usage-delivery" data-show={show || undefined} data-arrived={show && arrived || undefined} aria-hidden><path ref={line} className="ss-connector__line" d={path} pathLength="1" /><path className="ss-connector__arrow" d={arrow} /></svg>
+  return <svg className="ss-connector an-usage-delivery" data-ss-part="an-usage-delivery" data-show={show || undefined} aria-hidden><path className="ss-connector__line" d={path} pathLength="1" /><path className="ss-connector__arrow" d={arrow} /></svg>
+}
+
+// Marks data-arrived once the line has drawn, and clears it whenever the path
+// or show changes
+function delivering(el: HTMLElement) {
+  const line = () => el.querySelector<SVGPathElement>('.ss-connector__line')!
+  let drawn = ''
+  const check = () => { if (el.hasAttribute('data-show') && Math.abs(parseFloat(getComputedStyle(line()).strokeDashoffset)) < .0001) mark(el, 'data-arrived') }
+  const finish = (event: TransitionEvent) => { if (event.target === line() && event.propertyName === 'stroke-dashoffset') check() }
+  el.addEventListener('transitionend', finish); el.addEventListener('transitioncancel', finish)
+  return {
+    update() {
+      const now = `${line().getAttribute('d')} ${el.hasAttribute('data-show')}`
+      if (now === drawn) return
+      drawn = now
+      mark(el, 'data-arrived', null)
+      check()
+    },
+    destroy() { el.removeEventListener('transitionend', finish); el.removeEventListener('transitioncancel', finish) },
+  }
 }
 
 type Collection = { phase: number }

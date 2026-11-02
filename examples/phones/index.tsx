@@ -1,5 +1,4 @@
-import { Stage, Phone, LockScreen, Notification, Bar, WALLPAPER } from '../../kit'
-import { mail } from '../../assets/app-icons'
+import { Stage, Phone, LockScreen, Notification, Bar, Icon, WALLPAPER } from '../../kit'
 
 // Every phone frame in the kit, at the same width. Narrow, a 150 phone's
 // notification can't be read, so each frame is drawn at 300 and cropped to
@@ -38,7 +37,7 @@ export default function Phones() {
                   <Checkout />
                 ) : (
                   <LockScreen>
-                    <Notification icon={<img src={mail} alt="" />} title="Payment received" body="$249.00 from Jackson Hot Yoga" />
+                    <Notification icon={<Icon name="mail" filled size={20} />} title="Payment received" body="$249.00 from Jackson Hot Yoga" />
                   </LockScreen>
                 )}
               </Phone>

@@ -1,7 +1,6 @@
 'use client'
 
-import { createPortal } from 'react-dom'
-import { reduced } from '../../kit'
+import { behavior, stillAt } from '../../kit/render'
 
 export type MorphStyle = 'real' | 'large' | 'circle' | 'arrow'
 
@@ -66,26 +65,60 @@ function spring(t: number) {
 const rgba = (c: number[]) => `rgba(${c.map((v, i) => (i < 3 ? Math.round(v) : v.toFixed(3))).join(',')})`
 const path = (pts: Pt[]) => `M${pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join('L')}Z`
 
-function Shape({ style }: { style: MorphStyle }) {
-  const ref = useRef<SVGPathElement>(null)
-  const now = useRef({ pts: SHAPES[style].pts, look: SHAPES[style].look })
-  const reduced = reduced()
-  const initial = useRef(now.current)
-  useLayoutEffect(() => {
-    const el = ref.current
-    const to = SHAPES[style]
-    if (!el || !to) return
-    if (reduced) {
-      now.current = to
-      el.setAttribute('d', path(to.pts))
-      el.setAttribute('fill', rgba(to.look.fill))
-      el.setAttribute('stroke', rgba(to.look.stroke))
-      el.setAttribute('stroke-width', String(to.look.sw))
+/** Draws the morphing cursor inside the stage's own cursor, so it rides the
+ * kit's movement and press. Its marker can sit anywhere inside the stage. */
+export function CursorMorph({ style }: { style: MorphStyle }) {
+  behavior('cm-morph', morphing)
+  return <span hidden data-ss-part="cm-morph" data-style={style} />
+}
+
+// The outline lives in the kit's cursor, outside the scene's markup, so it
+// is marked as the behavior's own and the overlay's re-renders leave it. The
+// tween owns its geometry, including an interrupted transition's outline.
+function morphing(el: HTMLElement) {
+  let style = el.dataset.style as MorphStyle
+  let now = { pts: SHAPES[style].pts, look: SHAPES[style].look }
+  let raf = 0
+  let svg: SVGSVGElement | null = null
+  let shape: SVGPathElement | null = null
+
+  const draw = (pts: Pt[], look: Look, sw: string) => {
+    shape!.setAttribute('d', path(pts))
+    shape!.setAttribute('fill', rgba(look.fill))
+    shape!.setAttribute('stroke', rgba(look.stroke))
+    shape!.setAttribute('stroke-width', sw)
+  }
+
+  // The cursor is drawn after the scene, and redrawn when the stage restarts
+  const attach = () => {
+    const host = el.closest('.ss-stage')?.querySelector<HTMLElement>('.ss-cursor')
+    if (!host || svg?.parentElement === host) return
+    svg?.remove()
+    svg = document.createElementNS(SVG, 'svg')
+    svg.setAttribute('data-ss-own', '')
+    svg.setAttribute('class', 'cm-morph')
+    svg.setAttribute('width', '48')
+    svg.setAttribute('height', '48')
+    svg.setAttribute('viewBox', '-16 -16 48 48')
+    svg.setAttribute('aria-hidden', 'true')
+    shape = document.createElementNS(SVG, 'path')
+    shape.setAttribute('stroke-linejoin', 'round')
+    svg.append(shape)
+    host.append(svg)
+    draw(now.pts, now.look, String(now.look.sw))
+  }
+
+  const morph = (next: MorphStyle) => {
+    style = next
+    const to = SHAPES[next]
+    cancelAnimationFrame(raf)
+    if (stillAt(el)) {
+      now = to
+      draw(to.pts, to.look, String(to.look.sw))
       return
     }
-    const from = { pts: now.current.pts.map((p) => [...p] as Pt), look: now.current.look }
+    const from = { pts: now.pts.map((p) => [...p] as Pt), look: now.look }
     const mix = (a: number, b: number, k: number) => a + (b - a) * k
-    let raf = 0
     const t0 = performance.now()
     const tick = (ms: number) => {
       const t = Math.min((ms - t0) / 1000, 0.7)
@@ -98,29 +131,24 @@ function Shape({ style }: { style: MorphStyle }) {
         stroke: from.look.stroke.map((v, i) => mix(v, to.look.stroke[i], c)),
         sw: mix(from.look.sw, to.look.sw, c),
       }
-      now.current = { pts, look }
-      el.setAttribute('d', path(pts))
-      el.setAttribute('fill', rgba(look.fill))
-      el.setAttribute('stroke', rgba(look.stroke))
-      el.setAttribute('stroke-width', look.sw.toFixed(2))
+      now = { pts, look }
+      if (shape) draw(pts, look, look.sw.toFixed(2))
       if (t < 0.7) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [style, reduced])
-  // React keeps the initial attributes stable; the tween owns subsequent
-  // geometry, including an interrupted transition's current outline.
-  const s = initial.current
-  return (
-    <svg className="cm-morph" width="48" height="48" viewBox="-16 -16 48 48" aria-hidden>
-      <path ref={ref} d={path(s.pts)} fill={rgba(s.look.fill)} stroke={rgba(s.look.stroke)} strokeWidth={s.look.sw} strokeLinejoin="round" />
-    </svg>
-  )
+  }
+
+  return {
+    update() {
+      attach()
+      const next = el.dataset.style as MorphStyle
+      if (next !== style) morph(next)
+    },
+    destroy() {
+      cancelAnimationFrame(raf)
+      svg?.remove()
+    },
+  }
 }
 
-/** Draws the morphing cursor inside the stage's own cursor, so it rides the
- * kit's movement and press. `at` is any element inside the stage. */
-export function CursorMorph({ at, style }: { at: HTMLElement | null; style: MorphStyle }) {
-  const host = at?.closest('.ss-stage')?.querySelector<HTMLElement>('.ss-cursor')
-  return host ? createPortal(<Shape style={style} />, host) : null
-}
+const SVG = 'http://www.w3.org/2000/svg'

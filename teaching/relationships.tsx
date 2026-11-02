@@ -105,13 +105,12 @@ function Scene({ id, state, good }: { id: LessonId; state: State; good: boolean 
 }
 
 export function RelationshipComparison({ lessonId }: { lessonId: string }) {
-  const [revision, replay] = useState(0)
   const lesson = relationshipLessons.find(item => item.id === lessonId)
   if (!lesson) return null
   const height = lesson.id === 'list-reflow' ? 226 : lesson.id === 'surface-resize' ? 198 : 150
   return <section className="tr-lesson">
-    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button type="button" className="tc-replay" onClick={() => replay(value => value + 1)} aria-label={`Replay ${lesson.title.toLowerCase()}`}>Replay pair</button></header>
-    <Stage<State> key={`${lesson.id}-${revision}`} width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={poster} script={lesson.id === 'surface-resize' ? surfaceScript : script} play="once" className="tc-stage">
+    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button type="button" className="tc-replay" aria-label={`Replay ${lesson.title.toLowerCase()}`}>Replay pair</button></header>
+    <Stage<State> key={lesson.id} width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={poster} script={lesson.id === 'surface-resize' ? surfaceScript : script} play="once" className="tc-stage">
       {state => <div className="tc-pair tr-pair" data-relationship={lesson.id}>{[false, true].map(good => <figure key={String(good)}>
         <div className="tc-visual"><Scene id={lesson.id} state={state} good={good} /></div>
         <figcaption>{good ? lesson.good : lesson.bad}</figcaption>

@@ -131,6 +131,11 @@
     background: transparent;
   }
 
+  /* The stat's text, in a Stage the cell's size, keeps the page's type */
+  & .rb-stage--text > .ss-stage {
+    font-family: inherit;
+  }
+
   /* ---- Create (hero): the one window ---- */
 
   & .rb-term {

@@ -101,3 +101,4 @@
   .tc-lessons .tc-picker label { width: 100%; }
   .tc-lessons .tc-picker select { width: 100%; max-width: 100%; text-overflow: ellipsis; }
 }
+.tc-lessons .tc-lesson { display: contents; }

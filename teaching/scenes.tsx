@@ -1,4 +1,4 @@
-import type { Style } from '../kit'
+import type { Child, Style } from '../kit'
 import { Phone, Stage, Window } from '../kit'
 import './scenes.css'
 
@@ -96,7 +96,7 @@ function CropFiller({ good, compact }: SceneProps) {
 }
 
 function TileLead({ good, compact }: SceneProps) {
-  const tile = (title: string, body: JSX.Element, cls = '') => <div className={`cs-tile ${cls}`}><h3>{title}</h3>{body}</div>
+  const tile = (title: string, body: Child, cls = '') => <div className={`cs-tile ${cls}`}><h3>{title}</h3>{body}</div>
   const bars = <div className="cs-tile-bars"><i /><i /><i /></div>
   if (!good) return <div className="cs-scene cs-tiles" data-compact={compact || undefined}>
     {tile('Write together', bars)}{tile('Find anything', bars)}{tile('Works offline', bars)}{tile('Connects your tools', bars)}
@@ -121,29 +121,23 @@ function Scene({ id, ...props }: SceneProps & { id: SceneId }) {
   return <StoryCrop {...props} />
 }
 
-function SceneFrame({ id, good }: { id: SceneId; good: boolean }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [compactWidth, setCompactWidth] = useState(340)
-  useLayoutEffect(() => {
-    const element = ref.current
-    if (!element) return
-    const measure = () => setCompactWidth(Math.min(340, Math.max(280, Math.floor(element.getBoundingClientRect().width))))
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-  return <div ref={ref} className="cs-frame" data-narrow={compactWidth < 320 || undefined} style={{ '--cs-width': `${compactWidth}px` } as Style}>
+// The compact design is as wide as the frame (280 to 340px). The page
+// renders again with the frame's width when it resizes (contrasts.tsx)
+function SceneFrame({ id, good, compactWidth }: { id: SceneId; good: boolean; compactWidth: number }) {
+  return <div className="cs-frame" data-narrow={compactWidth < 320 || undefined} style={{ '--cs-width': `${compactWidth}px` } as Style}>
     <Stage width={540} height={420} compact={{ below: 520, width: compactWidth, height: 520 }} className="cs-stage">{(_s, _r, layout) => <Scene id={id} good={good} compact={layout === 'compact'} />}</Stage>
   </div>
 }
 
-export function SceneComparison({ lessonId }: { lessonId: string }) {
+/** The compact width for a scene frame this wide. */
+export const sceneCompactWidth = (frameWidth: number) => Math.min(340, Math.max(280, Math.floor(frameWidth)))
+
+export function SceneComparison({ lessonId, compactWidth = 340 }: { lessonId: string; compactWidth?: number }) {
   const lesson = sceneLessons.find(item => item.id === lessonId)
   if (!lesson) return null
   return <section className="cs-lesson"><header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div></header><div className="cs-pair">{[false, true].map(good => <figure className="cs-figure" key={String(good)}>
     <div className="cs-side-label">{good ? 'Considered composition' : 'Composition problem'}</div>
-    <SceneFrame id={lesson.id} good={good} />
+    <SceneFrame id={lesson.id} good={good} compactWidth={compactWidth} />
     <figcaption>{good ? lesson.good : lesson.bad}</figcaption>
   </figure>)}</div></section>
 }

@@ -81,7 +81,8 @@ function Root({ s }: { s: S }) {
     <div className="rc-page rc-root" data-show={s.view === 'root' || undefined}>
       <div className="rc-search">
         <span className="rc-input">
-          {s.query && <span className="rc-query">{s.query}</span>}
+          {/* Always in the markup, so the patcher keeps the caret and placeholder beside it */}
+          <span className="rc-query" hidden={!s.query}>{s.query}</span>
           <span key={s.query} className="rc-caret" />
           <span className="rc-placeholder" data-hidden={!!s.query || undefined}>
             Search for apps and commands...
@@ -131,7 +132,7 @@ function Root({ s }: { s: S }) {
           {FALLBACK.map((f, i) => {
             const I = f.icon
             return (
-              <div key={i} className="rc-row">
+              <div key={`fallback${i}`} className="rc-row">
                 <span className="rc-tile" style={{ background: f.tile }}>
                   <I size={13} strokeWidth={2.25} />
                 </span>
@@ -170,7 +171,7 @@ function Clip({ s, layout }: { s: S; layout: Layout }) {
             <Text>Today</Text>
           </div>
           {ENTRIES.map((e, i) => (
-            <div key={i} className="rc-row rc-entry" data-selected={s.sel === i || undefined}>
+            <div key={`entry${i}`} className="rc-row rc-entry" data-selected={s.sel === i || undefined}>
               <EntryIcon e={e} />
               {e.label ? <Text className="rc-title rc-clamp">{e.label}</Text> : <Bar w={compact ? Math.round(e.w * 0.7) : e.w} h={7} tone={4} />}
             </div>
@@ -196,7 +197,7 @@ function Clip({ s, layout }: { s: S; layout: Layout }) {
               [44, 60, 66],
               [62, 52, 40],
             ].map(([l, v0, v1], i) => (
-              <div key={i} className="rc-info-row">
+              <div key={`info${i}`} className="rc-info-row">
                 <Bar w={l} h={6} tone={3} />
                 <span className="rc-info-val">
                   <Bar className="rc-v" data-show={s.sel === 0 || undefined} w={v0} h={6} tone={4} />

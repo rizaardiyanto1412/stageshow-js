@@ -46,13 +46,12 @@ function Viewport({ state, good }: { state: State; good: boolean }) {
   </div>
 }
 export function EdgeComparison({ lessonId }: { lessonId: string }) {
-  const [revision, replay] = useState(0)
   const lesson = edgeLessons.find(item => item.id === lessonId)!
   const viewport = lesson.id === 'viewport-edge'
   const height = viewport ? 218 : 150
   return <section>
-    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button" onClick={() => replay(n => n + 1)}>Replay pair</button></header>
-    <Stage<State> key={revision} width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={{ ...initial, changed: true }} script={viewport ? scrolling : labels} play="once" className="tc-stage">
+    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button">Replay pair</button></header>
+    <Stage<State> width={704} height={height} compact={{ below: 704, width: 340, height: height * 2 + 16 }} initial={initial} poster={{ ...initial, changed: true }} script={viewport ? scrolling : labels} play="once" className="tc-stage">
       {state => <div className="tc-pair ed-pair" data-viewport={viewport || undefined}>{[false, true].map(good => <figure key={String(good)}><div className="tc-visual">{viewport ? <Viewport state={state} good={good} /> : <LabelSlot state={state} good={good} />}</div><figcaption>{good ? lesson.good : lesson.bad}</figcaption></figure>)}</div>}
     </Stage>
   </section>

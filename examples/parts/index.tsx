@@ -1,5 +1,4 @@
 import { Bar, Check, Connector, Icon, LockScreen, Menu, Meter, Notification, Phone, WALLPAPER, Popover, Spinner, Stage, States, Stream, type Act } from '../../kit'
-import { testFlight } from '../../assets/app-icons'
 import type { Child } from '../../kit'
 import './parts.css'
 
@@ -154,7 +153,7 @@ export default function Parts() {
                     <Notification
                       data-show={s.note || undefined}
                       className="pt-note"
-                      icon={<img src={testFlight} alt="" />}
+                      icon={<Icon name="send" filled size={20} />}
                       title="Promoted"
                       body="storefront is live with this build."
                     />

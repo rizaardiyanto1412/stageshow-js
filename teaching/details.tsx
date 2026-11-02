@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, Ellipsis } from '../kit/icons'
 import { Stage, type Act } from '../kit'
+import { behavior, hold, mark, type Behavior } from '../kit/render'
 import './details.css'
 
 // Detail pairs: small scenes where one choice decides whether the demo looks
@@ -155,7 +156,6 @@ function Pin({ s, good }: { s: S; good: boolean }) {
 }
 
 export function DetailComparison({ lessonId }: { lessonId: string }) {
-  const [revision, replay] = useState(0)
   const lesson = detailLessons.find(item => item.id === lessonId)
   if (!lesson) return null
   const id = lesson.id as Id
@@ -165,9 +165,9 @@ export function DetailComparison({ lessonId }: { lessonId: string }) {
     <section className="cp-lesson">
       <header>
         <div><h2>{lesson.title}</h2><p>{lesson.note}</p></div>
-        {script && <button className="tc-replay" type="button" onClick={() => replay(n => n + 1)}>Replay pair</button>}
+        {script && <button className="tc-replay" type="button">Replay pair</button>}
       </header>
-      <Stage<S> key={`${id}-${revision}`} width={704} height={height + 50} compact={{ below: 704, width: 340, height: height * 2 + 116 }} initial={{ phase: 0, role: 0 }} poster={{ phase: 1, role: 0 }} script={script} className="tc-stage">
+      <Stage<S> key={id} width={704} height={height + 50} compact={{ below: 704, width: 340, height: height * 2 + 116 }} initial={{ phase: 0, role: 0 }} poster={{ phase: 1, role: 0 }} script={script} className="tc-stage">
         {s => (
           <div className="tc-pair dd-pair">
             {[false, true].map(good => (
@@ -190,35 +190,46 @@ export function DetailComparison({ lessonId }: { lessonId: string }) {
 // changes with the size and the screen. So the emoji is drawn to a canvas,
 // cropped to its ink, and the crop is what the pill centers
 function Emoji({ char, size = 15 }: { char: string; size?: number }) {
-  const ref = useRef<HTMLCanvasElement>(null)
-  const [box, setBox] = useState<[number, number]>([size, size])
-  useLayoutEffect(() => {
-    const out = ref.current
-    if (!out) return
-    const k = Math.max(2, Math.ceil(devicePixelRatio)) * 2
-    const n = Math.ceil(size * 2 * k)
-    const c = document.createElement('canvas')
-    c.width = c.height = n
-    const g = c.getContext('2d', { willReadFrequently: true })
-    if (!g) return
-    g.font = `${size * k}px ${getComputedStyle(out).fontFamily}`
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
-    g.fillText(char, n / 2, n / 2)
-    const { data } = g.getImageData(0, 0, n, n)
-    let x0 = n, x1 = -1, y0 = n, y1 = -1
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-      if (data[(y * n + x) * 4 + 3]! > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
-    }
-    if (x1 < 0) return
-    const w = x1 - x0 + 1, h = y1 - y0 + 1
-    out.width = w
-    out.height = h
-    out.getContext('2d')!.drawImage(c, x0, y0, w, h, 0, 0, w, h)
-    // Shown at an even whole-pixel size, so it sits the same whole number
-    // of pixels from every side of an even-sized pill
-    const side = Math.round(Math.max(w, h) / k / 2) * 2
-    setBox([side * (w / Math.max(w, h)), side * (h / Math.max(w, h))])
-  }, [char, size])
-  return <canvas ref={ref} className="dr-emoji" role="img" aria-label={char} style={{ width: box[0], height: box[1] }} />
+  behavior('emoji', cropEmoji)
+  return <canvas className="dr-emoji" data-ss-part="emoji" data-char={char} data-size={size} role="img" aria-label={char} style={{ width: size, height: size }} />
+}
+
+// Draws the canvas once, when it first appears; the crop's bitmap size and
+// display size are the behavior's, so re-renders keep them
+function cropEmoji(out: HTMLElement): Behavior {
+  let drawn = ''
+  return {
+    update() {
+      const canvas = out as HTMLCanvasElement
+      const char = canvas.dataset.char ?? ''
+      const size = Number(canvas.dataset.size)
+      if (drawn === `${char} ${size}`) return
+      drawn = `${char} ${size}`
+      const k = Math.max(2, Math.ceil(devicePixelRatio)) * 2
+      const n = Math.ceil(size * 2 * k)
+      const c = document.createElement('canvas')
+      c.width = c.height = n
+      const g = c.getContext('2d', { willReadFrequently: true })
+      if (!g) return
+      g.font = `${size * k}px ${getComputedStyle(canvas).fontFamily}`
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.fillText(char, n / 2, n / 2)
+      const { data } = g.getImageData(0, 0, n, n)
+      let x0 = n, x1 = -1, y0 = n, y1 = -1
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        if (data[(y * n + x) * 4 + 3]! > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+      }
+      if (x1 < 0) return
+      const w = x1 - x0 + 1, h = y1 - y0 + 1
+      mark(canvas, 'width', String(w))
+      mark(canvas, 'height', String(h))
+      canvas.getContext('2d')!.drawImage(c, x0, y0, w, h, 0, 0, w, h)
+      // Shown at an even whole-pixel size, so it sits the same whole number
+      // of pixels from every side of an even-sized pill
+      const side = Math.round(Math.max(w, h) / k / 2) * 2
+      hold(canvas, 'width', `${side * (w / Math.max(w, h))}px`)
+      hold(canvas, 'height', `${side * (h / Math.max(w, h))}px`)
+    },
+  }
 }

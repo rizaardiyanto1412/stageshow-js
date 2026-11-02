@@ -1,7 +1,8 @@
 import type { Child } from '../../kit'
-import { Avatar, Badge, Bar, BrandMark, Icon, Meter, Connector, Count, Stage, States, Text, Window, reduced } from '../../kit'
+import { Avatar, Badge, Bar, BrandMark, Icon, Meter, Connector, Count, Stage, States, Text, Window, uid } from '../../kit'
 import type { Act, Layout, Rect } from '../../kit'
-import { figma, notion, slack } from '../../assets/app-icons'
+import { FileText, Hash, PenTool } from '../../kit/icons'
+import type { Box } from '../../kit'
 import './bento.css'
 
 // The bar for a bento grid (references/bento.md): the features section of
@@ -156,30 +157,26 @@ function Ledger({ on, layout }: { on: boolean; layout: Layout }) {
 }
 
 // The tile owns the crop. Match its current width so an inner Stage never
-// slices a window before the tile edge or shifts its content off the copy gutter.
-function usePictureWidth() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(340)
-  useLayoutEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const measure = () => setWidth(Math.max(1, node.getBoundingClientRect().width))
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
+// slices a window before the tile edge or shifts its content off the copy
+// gutter. The widths come from the host's (bento.css's grid, worked out
+// here); without a host (a server render), every picture is 340 wide.
+type Widths = { hero: number; tile: number; statHeight: number }
+const GAP = 14
+function widths(box?: Box): Widths {
+  if (!box) return { hero: 340, tile: 340, statHeight: 300 }
+  const grid = Math.min(box.width, 984)
+  const columns = box.width >= 900 ? 3 : box.width >= 600 ? 2 : 1
+  const tile = Math.max(1, (grid - GAP * (columns - 1)) / columns)
+  return { hero: columns === 3 ? tile * 2 + GAP : grid, tile, statHeight: [300, 320, 380][columns - 1] }
 }
 
-function Receipts() {
-  const [picture, width] = usePictureWidth()
+function Receipts({ width }: { width: number }) {
   return (
     <Tile
       area="hero"
       title={<b>Every receipt, matched.</b>}
       picture={
-        <div ref={picture} className="kb-picture kb-picture--hero">
+        <div className="kb-picture kb-picture--hero">
           <Stage<Beat> width={width} height={width < 600 ? 300 : 286} initial={before} poster={after} play="once" script={beat(0)} className="kb-stage">
             {(s) => <Ledger on={s.on} layout={width < 600 ? 'compact' : 'wide'} />}
           </Stage>
@@ -193,42 +190,26 @@ function Receipts() {
 
 /* ---------------- Close (stat) ---------------- */
 
-// Type, not a picture: page text in the tile, with one number that counts
-// down once as the grid scrolls in.
-function useInView<T extends Element>(delay: number) {
-  const ref = useRef<T>(null)
-  const [seen, setSeen] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let t = 0
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return
-      io.disconnect()
-      t = window.setTimeout(() => setSeen(true), delay)
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => {
-      io.disconnect()
-      clearTimeout(t)
-    }
-  }, [delay])
-  return [ref, seen] as const
-}
-
-function Close() {
-  const reduced = reduced()
-  const [ref, seen] = useInView<HTMLDivElement>(LEAD + STEP)
+// Type, not a picture: the tile's text, with one number that counts down
+// once as the grid scrolls in. The page has no state of its own to turn 9
+// into 2 when it scrolls in, so the text sits in a Stage the tile's size,
+// which plays the beat like every other tile (kb-stage--text keeps the
+// page's type).
+function Close({ width, height }: { width: number; height: number }) {
   return (
     <Tile area="stat" dark title={null}>
-      <div ref={ref} className="kb-stat">
-        <span className="kb-stat-lead">Month-end close in</span>
-        <span className="kb-stat-number">
-          <Count value={seen || reduced ? 2 : 9} duration={1100} />
-          <span className="kb-stat-unit"> days</span>
-        </span>
-        <span className="kb-stat-label">down from nine for the average team in its first quarter.</span>
-      </div>
+      <Stage<Beat> width={width} height={height} initial={before} poster={after} play="once" script={beat(1)} className="kb-stage kb-stage--text">
+        {(s) => (
+          <div className="kb-stat">
+            <span className="kb-stat-lead">Month-end close in</span>
+            <span className="kb-stat-number">
+              <Count value={s.on ? 2 : 9} duration={1100} />
+              <span className="kb-stat-unit"> days</span>
+            </span>
+            <span className="kb-stat-label">down from nine for the average team in its first quarter.</span>
+          </div>
+        )}
+      </Stage>
     </Tile>
   )
 }
@@ -236,7 +217,7 @@ function Close() {
 /* ---------------- Cards (object) ---------------- */
 
 function Cards() {
-  const goldId = useId()
+  const goldId = uid()
   return (
     <Tile
       area="card"
@@ -281,14 +262,13 @@ function Cards() {
 
 /* ---------------- Approvals (component) ---------------- */
 
-function Approvals() {
-  const [picture, width] = usePictureWidth()
+function Approvals({ width }: { width: number }) {
   return (
     <Tile
       area="approve"
       title={<b>Approve in one tap.</b>}
       picture={
-        <div ref={picture} className="kb-picture kb-picture--aligned">
+        <div className="kb-picture kb-picture--aligned">
           <Stage<Beat> width={width} height={206} initial={before} poster={after} play="once" script={beat(3)} className="kb-stage">
             {(s) => (
               <div className="kb-request">
@@ -333,21 +313,20 @@ function Approvals() {
 
 /* ---------------- Coding (diagram) ---------------- */
 
-// Real app icons, from the apps themselves (assets/app-icons.ts)
+// Placeholder app tiles: a solid rounded square and a glyph, no app's artwork
 const MERCHANTS = [
-  { name: 'Figma', icon: figma },
-  { name: 'Slack', icon: slack },
-  { name: 'Notion', icon: notion },
+  { name: 'Figma', color: '#7b61ff', Glyph: PenTool },
+  { name: 'Slack', color: '#4a154b', Glyph: Hash },
+  { name: 'Notion', color: '#1d1d1f', Glyph: FileText },
 ]
 
-function Coding() {
-  const [picture, width] = usePictureWidth()
+function Coding({ width }: { width: number }) {
   return (
     <Tile
       area="code"
       title={<b>Coded as it happens.</b>}
       picture={
-        <div ref={picture} className="kb-picture kb-picture--aligned">
+        <div className="kb-picture kb-picture--aligned">
           <Stage<Beat> width={width} height={206} initial={before} poster={after} play="once" script={beat(4)} className="kb-stage">
             {(s, rect) => {
               const right = (r: Rect) => ({ x: r.x + r.width, y: r.y + r.height / 2 })
@@ -358,7 +337,9 @@ function Coding() {
                   <div className="kb-merchants">
                     {MERCHANTS.map((m) => (
                       <span key={m.name} className="kb-merchant" data-target={`m-${m.name}`}>
-                        <img className="kb-merchant-icon" src={m.icon} alt="" />
+                        <span className="kb-merchant-icon" style={{ background: m.color }} aria-hidden>
+                          <m.Glyph size={12} strokeWidth={2.2} />
+                        </span>
                         <Text>{m.name}</Text>
                       </span>
                     ))}
@@ -384,15 +365,16 @@ function Coding() {
   )
 }
 
-export default function Bento() {
+export default function Bento(box?: Box) {
+  const w = widths(box)
   return (
     <div className="kite-bento">
       <div className="kb-grid">
-        <Receipts />
-        <Close />
+        <Receipts width={w.hero} />
+        <Close width={w.tile} height={w.statHeight} />
         <Cards />
-        <Approvals />
-        <Coding />
+        <Approvals width={w.tile} />
+        <Coding width={w.tile} />
       </div>
     </div>
   )

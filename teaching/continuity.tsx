@@ -34,10 +34,9 @@ async function pending(a: Act<State>) {
 }
 
 function Drag({ state, good }: { state: State; good: boolean }) {
-  const cursor = useRef<HTMLDivElement>(null)
   return <div className="ci-drag" data-good={good || undefined} data-pressed={state.pressed || undefined} data-gripped={state.gripped || undefined} data-moved={state.moved || undefined}>
     <div className="ci-drag__travel"><div className="ci-file"><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden><path d="M2 1h5l3 3v9H2zM7 1v3h3" /></svg>Draft</div></div>
-    <span className="ci-drag__pointer" aria-hidden><Cursor cursorRef={cursor} kind={state.gripped ? 'grab' : 'open'} /></span>
+    <span className="ci-drag__pointer" aria-hidden><Cursor kind={state.gripped ? 'grab' : 'open'} /></span>
   </div>
 }
 function Pending({ state, good }: { state: State; good: boolean }) {
@@ -55,12 +54,11 @@ function Pending({ state, good }: { state: State; good: boolean }) {
 }
 
 export function ContinuityComparison({ lessonId }: { lessonId: string }) {
-  const [revision, replay] = useState(0)
   const lesson = continuityLessons.find(item => item.id === lessonId)!
   const isDrag = lesson.id === 'drag-offset'
   return <section className="ci-lesson">
-    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button" onClick={() => replay(n => n + 1)}>Replay pair</button></header>
-    <Stage<State> key={`${lessonId}-${revision}`} width={704} height={150} compact={{ below: 704, width: 340, height: 316 }} initial={initial} poster={{ pressed: false, gripped: false, moved: true, settled: true, phase: 'done' }} script={isDrag ? drag : pending} play="once" className="tc-stage">
+    <header><div><h2>{lesson.title}</h2><p>{lesson.note}</p></div><button className="tc-replay" type="button">Replay pair</button></header>
+    <Stage<State> key={lessonId} width={704} height={150} compact={{ below: 704, width: 340, height: 316 }} initial={initial} poster={{ pressed: false, gripped: false, moved: true, settled: true, phase: 'done' }} script={isDrag ? drag : pending} play="once" className="tc-stage">
       {state => <div className="tc-pair">{[false, true].map(good => <figure key={String(good)}><div className="tc-visual">{isDrag ? <Drag state={state} good={good} /> : <Pending state={state} good={good} />}</div><figcaption>{good ? lesson.good : lesson.bad}</figcaption></figure>)}</div>}
     </Stage>
   </section>
