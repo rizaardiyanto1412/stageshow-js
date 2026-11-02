@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, File, Folder, LayoutGrid, List, Search, Share } from 'lucide-react'
+import type { Child } from '../../kit'
+import { ChevronLeft, ChevronRight, File, Folder, LayoutGrid, List, Search, Share } from '../../kit/icons'
 import { Bar, Collapse, Count, Stage, States, Window, type Act, type Layout, type Point, Meter } from '../../kit'
 import './upload.css'
 
@@ -225,7 +225,7 @@ function PdfIcon({ small }: { small?: boolean }) {
 
 /** The drag image follows the cursor on the drag's own frame callback, and
  *  lights whatever [data-drop] it is over. */
-function DragImage({ ghost, children }: { ghost: Ghost; children: ReactNode }) {
+function DragImage({ ghost, children }: { ghost: Ghost; children: Child }) {
   const ref = useRef<HTMLDivElement>(null)
   const over = useRef<HTMLElement | null>(null)
   const following = ghost.on && !ghost.dropped

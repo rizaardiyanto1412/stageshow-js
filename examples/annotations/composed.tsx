@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from 'react'
 import { Connector, Icon, Stage, States, type Act } from '../../kit'
 import './composed.css'
 

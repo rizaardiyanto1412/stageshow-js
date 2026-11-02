@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { Icon, Stage, type Act } from '../../kit'
 import './choreography.css'
 
@@ -56,7 +56,7 @@ function Price({ locale }: State) {
 
 function Checkout({ locale, width, good = true, top = 24, wide = false }: State & { width: number; good?: boolean; top?: number; wide?: boolean }) {
   return <div className="cy-checkout" data-coordinated={good || undefined} data-locale={locale} data-layout={wide ? 'wide' : 'compact'}
-    style={{ width: width - 32, height: 420, left: 16, top, '--cy-index': locale } as CSSProperties}>
+    style={{ width: width - 32, height: 420, left: 16, top, '--cy-index': locale } as Style}>
     <aside className="cy-order">
       <span className="cy-summary-heading">Order summary</span>
       <span className="cy-notebook" aria-hidden><i /><b>FIELD<br />JOURNAL</b></span>

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Stage, States, type Act } from '../kit'
 import './text-settle.css'
 

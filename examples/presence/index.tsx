@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { Bar, Facepile, Stage, Window, type Act, type Rect } from '../../kit'
 import './presence.css'
 
@@ -89,13 +89,13 @@ export default function Presence() {
                   <Bar w="52%" h={7} r={3.5} tone={2} />
                 </div>
                 <p className="pr-p">
-                  <span className="pr-sel" data-target="sel" data-on={s.sel || undefined} style={{ '--who': PEOPLE.maya } as CSSProperties}>
+                  <span className="pr-sel" data-target="sel" data-on={s.sel || undefined} style={{ '--who': PEOPLE.maya } as Style}>
                     Pricing goes live on Thursday.
                   </span>{' '}
                   Checkout opens in the US
                   {/* Where Jon clicked: his words arrive to the right of it */}
                   <span className="pr-anchor" data-target="ins" />
-                  <span className="pr-typed" style={{ '--who': PEOPLE.jon } as CSSProperties}>
+                  <span className="pr-typed" style={{ '--who': PEOPLE.jon } as Style}>
                     {s.jonText}
                     <span className="pr-caret" data-on={s.caret || undefined} key={s.jonText} />
                   </span>
@@ -120,7 +120,7 @@ export default function Presence() {
 
 function Peer({ name, color, at, slow }: { name: string; color: string; at: { x: number; y: number }; slow?: boolean }) {
   return (
-    <span className="pr-peer" data-slow={slow || undefined} style={{ transform: `translate(${at.x}px, ${at.y}px)`, '--who': color } as CSSProperties}>
+    <span className="pr-peer" data-slow={slow || undefined} style={{ transform: `translate(${at.x}px, ${at.y}px)`, '--who': color } as Style}>
       <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden>
         <path d="M1.5 1.5v13.2l3.6-3.3 2.4 5.4 2.4-1-2.4-5.3h5.1Z" fill="var(--who)" stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
       </svg>

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Stage, type Act } from '../kit'
 import './edges.css'
 

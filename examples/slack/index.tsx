@@ -25,7 +25,7 @@ import {
   Type,
   X,
   type LucideIcon,
-} from 'lucide-react'
+} from '../../kit/icons'
 import { Bar, Collapse, Stage, Text, Window, type Act } from '../../kit'
 import './slack.css'
 

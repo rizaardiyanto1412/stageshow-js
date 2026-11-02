@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { Badge, Check, Icon, Roll, Segmented, Stage, Toggle, Window, type Act } from '../../kit'
 import './grid.css'
 
@@ -10,7 +10,7 @@ import './grid.css'
 type Draft = { tab: number; sent: 'idle' | 'busy' | 'done'; selected: boolean; gap: number }
 const INITIAL: Draft = { tab: 0, sent: 'idle', selected: false, gap: 24 }
 const POSTER: Draft = { tab: 1, sent: 'done', selected: true, gap: 25 }
-const at = (left: number, top: number, width?: number, height?: number): CSSProperties => ({ left, top, width, height })
+const at = (left: number, top: number, width?: number, height?: number): Style => ({ left, top, width, height })
 
 const draft = async (a: Act<Draft>) => {
   await a.wait(650)
@@ -121,7 +121,7 @@ function keySize(w: number, h: number) {
 function Keys({ w, h }: { w: number; h: number }) {
   const { size, gap } = keySize(w, h)
   return <Stage width={w} height={h} className="hg-keys">{() => (
-    <div className="hg-keyboard" style={{ '--hg-key': `${size}px`, '--hg-key-gap': `${gap}px` } as CSSProperties} data-crop>
+    <div className="hg-keyboard" style={{ '--hg-key': `${size}px`, '--hg-key-gap': `${gap}px` } as Style} data-crop>
       {KEY_ROWS.map((row, y) => <div className="hg-key-row" key={y}>{row.map(([latin, kana], x) => {
         const whole = 14 + x * (size + gap) + size <= w && 14 + y * (size + gap) + size <= h
         return <span className="hg-key" key={latin}>{whole && <><small>{latin}</small><span>{kana}</span></>}</span>
@@ -156,7 +156,7 @@ function Icons({ w, h }: { w: number; h: number }) {
 function Player({ w, h }: { w: number; h: number }) {
   const side = w - 40 - (h - 40) - 18 < 136
   return <Stage width={w} height={h} theme="dark" className="hg-player">{() => (
-    <div className="hg-player-content" data-stack={side || undefined} style={{ '--hg-cover': `${side ? 48 : h - 40}px` } as CSSProperties}>
+    <div className="hg-player-content" data-stack={side || undefined} style={{ '--hg-cover': `${side ? 48 : h - 40}px` } as Style}>
       <span className="hg-cover" aria-label="Graphic album artwork"><span className="hg-cover-sun" /><span className="hg-cover-sea" /></span>
       <div className="hg-player-side">
         <span className="hg-player-names"><strong>Low Tide</strong><span>Marlo</span></span>

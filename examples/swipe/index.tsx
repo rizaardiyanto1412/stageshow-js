@@ -1,4 +1,4 @@
-import { Archive, ChevronLeft, ChevronRight, Ellipsis, Megaphone, MessageSquare, ShoppingCart, User } from 'lucide-react'
+import { Archive, ChevronLeft, ChevronRight, Ellipsis, Megaphone, MessageSquare, ShoppingCart, User } from '../../kit/icons'
 import { Avatar, Bar, Collapse, Phone, Row, Stage, type Act } from '../../kit'
 import './swipe.css'
 

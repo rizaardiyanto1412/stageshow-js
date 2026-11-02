@@ -1,4 +1,4 @@
-import { AppWindow, ArrowLeft, BookOpen, Globe, Search, Calculator, Calendar, ChevronDown, ClipboardList, Folder, Image, Link, Music, Settings, Text as TextIcon, type LucideIcon } from 'lucide-react'
+import { AppWindow, ArrowLeft, BookOpen, Globe, Search, Calculator, Calendar, ChevronDown, ClipboardList, Folder, Image, Link, Music, Settings, Text as TextIcon, type LucideIcon } from '../../kit/icons'
 import { Bar, Collapse, Stage, Text, type Act, type Layout } from '../../kit'
 import './raycast.css'
 

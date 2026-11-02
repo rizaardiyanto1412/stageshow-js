@@ -1,5 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Count, Icon, Phone, Stage, useReducedMotion } from '../../kit'
+import type { Child } from '../../kit'
+import { Count, Icon, Phone, Stage, reduced } from '../../kit'
 import type { Act } from '../../kit'
 import './grid.css'
 
@@ -32,7 +32,7 @@ const beat = (i: number) => async (a: Act<Beat>) => {
   await a.set({ on: true })
 }
 
-function Tile({ area, title, children, picture, photo }: { area: string; title: ReactNode; children?: ReactNode; picture?: ReactNode; photo?: boolean }) {
+function Tile({ area, title, children, picture, photo }: { area: string; title: Child; children?: Child; picture?: Child; photo?: boolean }) {
   return (
     <section className={`sg-tile sg-tile--${area}`} data-photo={photo || undefined} data-crop>
       {picture}
@@ -200,7 +200,7 @@ function Private() {
 /* ---------------- Distance (stat) ---------------- */
 
 function Distance() {
-  const reduced = useReducedMotion()
+  const reduced = reduced()
   const [ref, seen] = useInView<HTMLDivElement>(LEAD + 2 * STEP)
   return (
     <Tile area="stat" title={null}>

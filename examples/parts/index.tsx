@@ -1,6 +1,6 @@
 import { Bar, Check, Connector, Icon, LockScreen, Menu, Meter, Notification, Phone, WALLPAPER, Popover, Spinner, Stage, States, Stream, type Act } from '../../kit'
 import { testFlight } from '../../assets/app-icons'
-import type { ReactNode } from 'react'
+import type { Child } from '../../kit'
 import './parts.css'
 
 // A specimen sheet for the kit's newer parts, one tile each, playing in turn.
@@ -68,7 +68,7 @@ async function script(a: Act<S>) {
   await a.wait(1000)
 }
 
-function Tile({ name, className, children }: { name: string; className?: string; children: ReactNode }) {
+function Tile({ name, className, children }: { name: string; className?: string; children: Child }) {
   return (
     <div className={`pt-tile${className ? ` ${className}` : ''}`}>
       <span className="pt-name">{name}</span>

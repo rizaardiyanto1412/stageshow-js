@@ -1,4 +1,4 @@
-import { Check as Tick, ChevronDown, FileText, Lock } from 'lucide-react'
+import { Check as Tick, ChevronDown, FileText, Lock } from '../../kit/icons'
 import { Avatar, Bar, Collapse, Facepile, Field, Menu, Popover, Roll, Row, Stage, Text, Window, type Act, type Layout } from '../../kit'
 import './share.css'
 

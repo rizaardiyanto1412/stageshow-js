@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { Child } from '../kit'
 import { Collapse, Fly, Roll, Stage, type Act, type Rect } from '../kit'
 import { MacPointer } from '../kit/cursors'
 import './contrasts.css'
@@ -134,7 +134,7 @@ function ResetScene({ good, state }: { good: boolean; state: State }) {
   </div>
 }
 
-function Action({ state, good, kind, children, icon = false }: { state: State; good: boolean; kind: Kind; children: ReactNode; icon?: boolean }) {
+function Action({ state, good, kind, children, icon = false }: { state: State; good: boolean; kind: Kind; children: Child; icon?: boolean }) {
   return <div className={`tc-action${icon ? ' tc-action--icon' : ''}`}>
     <div className="tc-button" data-pressed={state.pressed && (good || (kind !== 'press' && kind !== 'reset')) || undefined}>{children}</div>
     <span className="tc-pointer" data-pressed={state.pressed || undefined} aria-hidden><MacPointer /></span>
@@ -146,7 +146,7 @@ function Scene({ kind, good, state }: { kind: Kind; good: boolean; state: State 
   if (kind === 'interrupt') return <InterruptScene good={good} state={state} />
   if (kind === 'handoff') return <HandoffScene good={good} state={state} />
   if (kind === 'reset') return <ResetScene good={good} state={state} />
-  const action = (children: ReactNode, icon = false) => <Action state={state} good={good} kind={kind} icon={icon}>{children}</Action>
+  const action = (children: Child, icon = false) => <Action state={state} good={good} kind={kind} icon={icon}>{children}</Action>
   if (kind === 'label') return <div className="tc-card tc-label-card">
     {action(<span className="tc-label">{good ? <Roll variant="fade">{state.done ? 'Back to editor' : 'Open preview'}</Roll> : (state.done ? 'Back to editor' : 'Open preview')}</span>)}
   </div>

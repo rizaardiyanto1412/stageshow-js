@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import type { Child } from '../../kit'
 import {
   AppWindow,
   ChevronDown,
@@ -23,7 +23,7 @@ import {
   Tag,
   Users,
   X,
-} from 'lucide-react'
+} from '../../kit/icons'
 import { Bar, Stage, Text, Window, type Act, type Layout, States } from '../../kit'
 import './finder-glass.css'
 
@@ -271,7 +271,7 @@ function Names({ on, align = 'start' }: { on: boolean; align?: 'start' | 'center
 }
 
 /** A toolbar item in icon-and-text mode: the glass button, its label under it. */
-function Tool({ label, children }: { label: string; children: ReactNode }) {
+function Tool({ label, children }: { label: string; children: Child }) {
   return (
     <span className="fgl-tool">
       {children}
@@ -282,7 +282,7 @@ function Tool({ label, children }: { label: string; children: ReactNode }) {
 
 function Sidebar() {
   const ic = { size: 16, strokeWidth: 1.6 }
-  const item = (icon: ReactNode, label: string, extra?: { current?: boolean; cloud?: boolean }) => (
+  const item = (icon: Child, label: string, extra?: { current?: boolean; cloud?: boolean }) => (
     <div className="fgl-side__item" data-current={extra?.current || undefined}>
       <span className="fgl-side__icon">{icon}</span>
       <Text>{label}</Text>

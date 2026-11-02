@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import type { Style } from '../kit'
 import { Phone, Stage, Window } from '../kit'
 import './scenes.css'
 
@@ -133,7 +133,7 @@ function SceneFrame({ id, good }: { id: SceneId; good: boolean }) {
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  return <div ref={ref} className="cs-frame" data-narrow={compactWidth < 320 || undefined} style={{ '--cs-width': `${compactWidth}px` } as CSSProperties}>
+  return <div ref={ref} className="cs-frame" data-narrow={compactWidth < 320 || undefined} style={{ '--cs-width': `${compactWidth}px` } as Style}>
     <Stage width={540} height={420} compact={{ below: 520, width: compactWidth, height: 520 }} className="cs-stage">{(_s, _r, layout) => <Scene id={id} good={good} compact={layout === 'compact'} />}</Stage>
   </div>
 }

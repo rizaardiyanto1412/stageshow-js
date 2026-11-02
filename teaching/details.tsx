@@ -1,5 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, Ellipsis } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Ellipsis } from '../kit/icons'
 import { Stage, type Act } from '../kit'
 import './details.css'
 

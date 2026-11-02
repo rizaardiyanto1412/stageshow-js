@@ -1,5 +1,5 @@
 import { Badge, Bar, Camera, Chart, Code, Field, Segmented, Scroll, Slot, Stage, Tabs, Toggle, type Act, type Rect } from '../../kit'
-import type { ReactNode } from 'react'
+import type { Child } from '../../kit'
 import './controls.css'
 
 // A specimen sheet for the controls, Code, Chart, Slot, scrolling and the
@@ -102,7 +102,7 @@ async function script(a: Act<S>) {
   await a.wait(900)
 }
 
-function Tile({ name, target, children }: { name: string; target?: string; children: ReactNode }) {
+function Tile({ name, target, children }: { name: string; target?: string; children: Child }) {
   return (
     <div className="ct-tile" data-target={target}>
       <span className="ct-name">{name}</span>

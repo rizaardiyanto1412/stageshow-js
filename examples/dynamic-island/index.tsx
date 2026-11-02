@@ -1,4 +1,4 @@
-import { useId, useRef, type CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { Phone, LockScreen, Roll, Stage, Swap, type Act } from '../../kit'
 import './island.css'
 
@@ -71,7 +71,7 @@ function Bag({ size }: { size: number }) {
   )
 }
 
-const boxStyle = (b: Box, grow: boolean): CSSProperties => ({
+const boxStyle = (b: Box, grow: boolean): Style => ({
   left: b.l,
   top: b.t,
   width: b.w,

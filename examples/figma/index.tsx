@@ -1,4 +1,4 @@
-import { Eye, Frame, Image as ImageIcon, MessageCircle, Minus, MousePointer2, PenTool, Pipette, Plus, Square, Type, X } from 'lucide-react'
+import { Eye, Frame, Image as ImageIcon, MessageCircle, Minus, MousePointer2, PenTool, Pipette, Plus, Square, Type, X } from '../../kit/icons'
 import { Bar, Facepile, Follow, Popover, Stage, Text, Window, box, type Act, type Point, BrandMark } from '../../kit'
 import './figma.css'
 

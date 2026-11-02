@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon, Prompt, Stage, Window, type WindowProps } from '../../kit'
 import './chrome.css'
 

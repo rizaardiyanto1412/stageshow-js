@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, CirclePlus, Clock3, House, Library, ListMusic, MicVocal, MonitorSpeaker, Pause, Play, Plus, Repeat, Search, Shuffle, SkipBack, SkipForward, Volume2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CirclePlus, Clock3, House, Library, ListMusic, MicVocal, MonitorSpeaker, Pause, Play, Plus, Repeat, Search, Shuffle, SkipBack, SkipForward, Volume2 } from '../../kit/icons'
 import { Bar, Stage, Swap, Text, Window, type Act } from '../../kit'
 import './spotify.css'
 

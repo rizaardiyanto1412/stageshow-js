@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from 'react'
 import { BrandMark, Stage, brandMarks, type BrandName } from '../../kit'
 import './brands.css'
 

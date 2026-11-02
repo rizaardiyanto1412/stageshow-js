@@ -99,7 +99,9 @@ export function behavior(name: string, factory: BehaviorFactory) {
 /** Attach, update and drop behaviors for the parts now in `root`. `attached` is the stage's own set, carried between calls. */
 export function syncBehaviors(root: Element, attached: Set<Element>) {
   const now = new Set<Element>()
-  root.querySelectorAll<HTMLElement>('[data-ss-part]').forEach((el) => {
+  // Innermost first, as effects run: a part settles its own size before the
+  // part around it measures (a bubble before the thread that glides it)
+  Array.from(root.querySelectorAll<HTMLElement>('[data-ss-part]')).reverse().forEach((el) => {
     now.add(el)
     let b = live.get(el)
     if (!b) {

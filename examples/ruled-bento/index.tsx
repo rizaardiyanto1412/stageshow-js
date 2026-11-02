@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Count, Icon, Meter, Prompt, Caret, Stage, States, Window, useReducedMotion } from '../../kit'
+import type { Child } from '../../kit'
+import { Count, Icon, Meter, Prompt, Caret, Stage, States, Window, reduced } from '../../kit'
 import type { Act, Layout } from '../../kit'
 import './grid.css'
 
@@ -31,7 +31,7 @@ const beat = (i: number) => async (a: Act<Beat>) => {
   await a.set({ on: true })
 }
 
-function Tile({ area, title, children, picture }: { area: string; title: ReactNode; children?: ReactNode; picture?: ReactNode }) {
+function Tile({ area, title, children, picture }: { area: string; title: Child; children?: Child; picture?: Child }) {
   return (
     <section className={`rb-cell rb-cell--${area}`} data-crop>
       {title ? (
@@ -147,7 +147,7 @@ function useInView<T extends Element>(delay: number) {
 }
 
 function Reads() {
-  const reduced = useReducedMotion()
+  const reduced = reduced()
   const [ref, seen] = useInView<HTMLDivElement>(LEAD + STEP)
   return (
     <Tile area="stat" title={null}>

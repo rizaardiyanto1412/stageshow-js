@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { GitBranch, GitCommitHorizontal } from 'lucide-react'
+import type { Child } from '../../kit'
+import { GitBranch, GitCommitHorizontal } from '../../kit/icons'
 import { Badge, Bar, Collapse, Spinner, Stage, Window, type Act } from '../../kit'
 import './hero.css'
 
@@ -138,7 +138,7 @@ function Label({ ready }: { ready: boolean }) {
   )
 }
 
-function Row({ lead, msg, hash, when, status, time, current }: { lead?: boolean; msg: string; hash: string; when: string; status: ReactNode; time: ReactNode; current: boolean }) {
+function Row({ lead, msg, hash, when, status, time, current }: { lead?: boolean; msg: string; hash: string; when: string; status: Child; time: Child; current: boolean }) {
   return (
     <div className="dh-row" data-lead={lead || undefined}>
       <span className="dh-lines">

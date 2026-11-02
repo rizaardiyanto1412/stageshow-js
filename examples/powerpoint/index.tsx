@@ -1,4 +1,4 @@
-import { useId, type CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import {
   AlignCenter,
   AlignJustify,
@@ -16,7 +16,7 @@ import {
   Strikethrough,
   Underline,
   X,
-} from 'lucide-react'
+} from '../../kit/icons'
 import { Bar, Stage, Text, Window, type Act, type Layout } from '../../kit'
 import './pp.css'
 
@@ -149,7 +149,7 @@ function SlideArt({ n, design }: { n: number; design: Design }) {
 }
 
 /** A slide scaled into a box of the given width. */
-function Mini({ n, design, width, style }: { n: number; design: Design; width: number; style?: CSSProperties }) {
+function Mini({ n, design, width, style }: { n: number; design: Design; width: number; style?: Style }) {
   const k = width / 640
   return (
     <div className="pp-mini" style={{ width, height: 360 * k, ...style }}>
@@ -182,7 +182,7 @@ function Tabs({ layout }: { layout: Layout }) {
   )
 }
 
-function Big({ icon, label }: { icon: React.ReactNode; label: number }) {
+function Big({ icon, label }: { icon: Child; label: number }) {
   return (
     <span className="pp-big">
       {icon}
@@ -365,7 +365,7 @@ export default function PowerPointDemo() {
                       data-target={`idea-${i + 1}`}
                       data-show={s.ideas || undefined}
                       data-picked={s.picked === i + 1 || undefined}
-                      style={{ '--d': s.ideas ? `${180 + i * 70}ms` : `${(2 - i) * 40}ms` } as CSSProperties}
+                      style={{ '--d': s.ideas ? `${180 + i * 70}ms` : `${(2 - i) * 40}ms` } as Style}
                     >
                       <Mini n={2} design={d} width={g.idea} />
                     </div>

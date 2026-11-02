@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react'
 import { Roll, Stage, type Act } from '../kit'
 import { MacPointer } from '../kit/cursors'
 import { Cursor } from '../kit/cursor'

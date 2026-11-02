@@ -105,7 +105,11 @@ function counting(node: HTMLElement) {
       else was.textContent = c.textContent
       return was
     })
-    node.replaceChildren(...kids)
+    // In place: a strip taken out and put back would lose its transition
+    kids.forEach((kid, i) => {
+      if (node.children[i] !== kid) node.insertBefore(kid, node.children[i] ?? null)
+    })
+    while (node.children.length > kids.length) node.lastElementChild!.remove()
   }
   return {
     morph(next: Element) {

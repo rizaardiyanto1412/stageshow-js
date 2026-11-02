@@ -280,8 +280,8 @@ function Excel({ s, layout }: { s: S; layout: Layout }) {
 
 function Row({ r, n, sel, active, total }: { r: number; n: number; sel: boolean; active: boolean; total: boolean }) {
   const data = r >= 2 && r <= 7 ? ROWS[r - 2] : null
-  let a: React.ReactNode = null
-  let b: React.ReactNode = null
+  let a: Child = null
+  let b: Child = null
   if (r === 1) {
     a = <span className="xl-bold">Region</span>
     b = <span className="xl-bold">Q3 Sales</span>

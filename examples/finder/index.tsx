@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import type { Child } from '../../kit'
 import {
   AppWindow,
   ChevronLeft,
@@ -17,7 +17,7 @@ import {
   Search,
   Share,
   X,
-} from 'lucide-react'
+} from '../../kit/icons'
 import { Bar, Collapse, Stage, Text, Window, type Act, type Layout, type Point } from '../../kit'
 import './finder.css'
 
@@ -240,7 +240,7 @@ export default function FinderDemo() {
 }
 
 function Sidebar() {
-  const item = (icon: ReactNode, label: ReactNode, extra?: Record<string, unknown>) => (
+  const item = (icon: Child, label: Child, extra?: Record<string, unknown>) => (
     <div className="fq-side__item" {...extra}>
       <span className="fq-side__icon">{icon}</span>
       {label}
@@ -297,7 +297,7 @@ function Photo({ className, alt }: { className?: string; alt?: boolean }) {
 }
 
 /** The drag image uses the same frame's callback point, with no second RAF. */
-function DragImage({ ghost, children }: { ghost: Ghost; children: ReactNode }) {
+function DragImage({ ghost, children }: { ghost: Ghost; children: Child }) {
   const ref = useRef<HTMLDivElement>(null)
   const over = useRef<HTMLElement | null>(null)
   const following = ghost.on && !ghost.dropped

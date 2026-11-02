@@ -1,5 +1,5 @@
-import { Box, ChevronDown, CircleDashed, Folder, Inbox, IterationCcw, Layers, ListFilter, Search, SignalHigh, SlidersHorizontal, SquarePen, Tag, UserRound, UserRoundCheck } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Box, ChevronDown, CircleDashed, Folder, Inbox, IterationCcw, Layers, ListFilter, Search, SignalHigh, SlidersHorizontal, SquarePen, Tag, UserRound, UserRoundCheck } from '../../kit/icons'
+import type { Child } from '../../kit'
 import { Avatar, Bar, Camera, Collapse, Field, Popover, Stage, Text, Window, type Act, type Layout, type Rect } from '../../kit'
 import './linear.css'
 
@@ -51,7 +51,7 @@ const ROWS: Row[] = [
   { status: 'done', pri: 3, id: 42, title: 122, date: 24 },
 ]
 
-const COMMANDS: { label: string; key: string; icon: ReactNode; target?: string }[] = [
+const COMMANDS: { label: string; key: string; icon: Child; target?: string }[] = [
   { label: 'Change status…', key: 'S', icon: <CircleDashed size={15} strokeWidth={1.6} /> },
   { label: 'Assign to…', key: 'A', icon: <UserRound size={15} strokeWidth={1.6} /> },
   { label: 'Assign to me', key: 'I', icon: <UserRoundCheck size={15} strokeWidth={1.6} />, target: 'me' },
@@ -224,7 +224,7 @@ function IssueRow({ r, i, s, compact }: { r: Row; i: number; s: S; compact: bool
 }
 
 function Sidebar() {
-  const nav = (icon: ReactNode, w: number, active?: boolean) => (
+  const nav = (icon: Child, w: number, active?: boolean) => (
     <div className="ln-nav" data-active={active || undefined}>
       {icon}
       <Bar w={w} h={5} tone={active ? 4 : 3} />

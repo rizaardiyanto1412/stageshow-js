@@ -1,5 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Avatar, Badge, Bar, BrandMark, Icon, Meter, Connector, Count, Stage, States, Text, Window, useReducedMotion } from '../../kit'
+import type { Child } from '../../kit'
+import { Avatar, Badge, Bar, BrandMark, Icon, Meter, Connector, Count, Stage, States, Text, Window, reduced } from '../../kit'
 import type { Act, Layout, Rect } from '../../kit'
 import { figma, notion, slack } from '../../assets/app-icons'
 import './bento.css'
@@ -33,7 +33,7 @@ const beat = (i: number) => async (a: Act<Beat>) => {
   await a.set({ on: true })
 }
 
-function Tile({ area, title, children, picture, dark }: { area: string; title: ReactNode; children?: ReactNode; picture?: ReactNode; dark?: boolean }) {
+function Tile({ area, title, children, picture, dark }: { area: string; title: Child; children?: Child; picture?: Child; dark?: boolean }) {
   return (
     <section className={`kb-tile kb-tile--${area}`} data-dark={dark || undefined} data-crop>
       {title ? (
@@ -217,7 +217,7 @@ function useInView<T extends Element>(delay: number) {
 }
 
 function Close() {
-  const reduced = useReducedMotion()
+  const reduced = reduced()
   const [ref, seen] = useInView<HTMLDivElement>(LEAD + STEP)
   return (
     <Tile area="stat" dark title={null}>

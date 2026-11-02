@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon, Stage } from '../../kit'
 import './backgrounds.css'
 

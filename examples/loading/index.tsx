@@ -1,4 +1,4 @@
-import { RotateCw } from 'lucide-react'
+import { RotateCw } from '../../kit/icons'
 import { Avatar, Badge, Bar, Stage, Window, type Act } from '../../kit'
 import './loading.css'
 

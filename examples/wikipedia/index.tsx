@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react'
+import type { Child } from '../../kit'
 import { Popover, Stage, Swap, Window, type Act, type Layout } from '../../kit'
 import './wiki.css'
 
@@ -323,7 +323,7 @@ function Lake({ compact }: { compact: boolean }) {
   )
 }
 
-function Infobox({ name, tone, img, caption, rows }: { name: string; tone: 'mountain' | 'water'; img: 'fuji' | 'lake'; caption: string; rows: [string, ReactNode][] }) {
+function Infobox({ name, tone, img, caption, rows }: { name: string; tone: 'mountain' | 'water'; img: 'fuji' | 'lake'; caption: string; rows: [string, Child][] }) {
   return (
     <aside className="wk-infobox">
       <div className="wk-infobox__name" data-tone={tone}>
@@ -400,7 +400,7 @@ function Logo({ compact }: { compact: boolean }) {
 }
 
 // Codex, Wikimedia's icon set (MIT), at its native 20px grid
-const CDX: Record<string, ReactNode> = {
+const CDX: Record<string, Child> = {
   menu: <path d="M1 3h18v2H1zm0 6h18v2H1zm0 6h18v2H1z" />,
   search: <path d="M8 1a7 7 0 015.605 11.191l5.102 5.102-1.414 1.414-5.102-5.102A7 7 0 118 1m0 2a5 5 0 100 10A5 5 0 008 3" />,
   ellipsis: <path d="M4 11.5H1v-3h3zm7.5 0h-3v-3h3zm7.5 0h-3v-3h3z" />,

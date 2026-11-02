@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronLeft, Mic, Plus, Video } from 'lucide-react'
+import { ArrowUp, ChevronLeft, Mic, Plus, Video } from '../../kit/icons'
 import { Stage, Phone, Thread, Bubble, Stamp, Receipt, Keyboard, type Act, Avatar } from '../../kit'
 import './imessage.css'
 

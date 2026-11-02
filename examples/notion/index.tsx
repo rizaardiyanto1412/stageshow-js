@@ -17,8 +17,8 @@ import {
   SquareCheck,
   Star,
   Type,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from '../../kit/icons';
+import type { LucideIcon } from '../../kit/icons';
 import {
   Bar,
   Menu,

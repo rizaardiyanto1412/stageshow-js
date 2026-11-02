@@ -2,7 +2,7 @@
 
 const P = { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 
-const PATHS: Record<string, React.ReactNode> = {
+const PATHS: Record<string, Child> = {
   'list-sparkle': (
     <>
       <path d="M11.5 12L5.5 12" {...P} />

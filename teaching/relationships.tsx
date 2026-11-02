@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Collapse, Roll, Stage, type Act } from '../kit'
 import { MacPointer } from '../kit/cursors'
 import './contrasts.css'

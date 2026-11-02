@@ -1,5 +1,5 @@
-import { CircleX, GitBranch, Globe, LoaderCircle, Sparkles, WandSparkles } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { CircleX, GitBranch, Globe, LoaderCircle, Sparkles, WandSparkles } from '../kit/icons'
+import type { LucideIcon } from '../kit/icons'
 import { Stage } from '../kit'
 import './style.css'
 

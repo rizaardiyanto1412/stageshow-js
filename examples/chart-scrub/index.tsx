@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { Chart, Roll, Stage, Window, chartPoints, type Act } from '../../kit'
 import './scrub.css'
 

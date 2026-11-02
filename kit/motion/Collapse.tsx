@@ -56,6 +56,9 @@ export function Collapse({ open, reveal = 'clip', from = 'above', solid = false,
 function collapsing(el: HTMLElement) {
   let open = el.hasAttribute('data-open')
   let timer = 0
+  // Measured on mount and when open changes, right after the render: the
+  // inner box clips, so its height then is where the height starts from
+  let measure = true
   const settled = (e: TransitionEvent) => {
     if (e.target === el && e.propertyName === 'grid-template-rows') mark(el, 'data-moving', null)
   }
@@ -65,6 +68,7 @@ function collapsing(el: HTMLElement) {
       const now = next.hasAttribute('data-open')
       if (now === open) return
       open = now
+      measure = true
       mark(el, 'data-moving')
       next.setAttribute('data-moving', '')
       // No transitionend without a transition (reduced motion): never leave it moving
@@ -72,6 +76,8 @@ function collapsing(el: HTMLElement) {
       timer = window.setTimeout(() => mark(el, 'data-moving', null), 900)
     },
     update() {
+      if (!measure) return
+      measure = false
       const h = el.firstElementChild?.scrollHeight ?? 0
       if (h) mark(el, 'data-tall', h > 44)
     },

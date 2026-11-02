@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { Connector, Follow, Icon, Stage, States, type Act, type Rect } from '../../kit'
 import './annotations.css'
 import { CollectionStudy, DetailStudy } from './composed'
@@ -240,7 +240,7 @@ function StreamStudy({ width }: { width: number }) {
           <div className="an-stream-history"><span>Session started</span><time>14:31</time></div>
           <footer className="an-stream-receiving" data-live={s.receiving || undefined}><i /><States align="start" value={s.receiving ? 'live' : s.connected ? 'opening' : 'idle'} states={{ idle: 'Stream disconnected', opening: 'Opening route', live: 'Receiving events' }} /></footer>
         </section>
-        <svg className="an-stream-route" data-active={s.connected || undefined} data-arrived={s.receiving || undefined} data-ready={a.width > 0 && b.width > 0 || undefined} style={{ '--an-stream-reveal-duration': `${STREAM_REVEAL_MS}ms` } as CSSProperties} aria-hidden>
+        <svg className="an-stream-route" data-active={s.connected || undefined} data-arrived={s.receiving || undefined} data-ready={a.width > 0 && b.width > 0 || undefined} style={{ '--an-stream-reveal-duration': `${STREAM_REVEAL_MS}ms` } as Style} aria-hidden>
           <defs><mask id={revealId} maskUnits="userSpaceOnUse"><path className="an-stream-reveal" d={path} pathLength="1" /></mask></defs>
           <path className="an-stream-underlay" d={path} />
           <path className="an-stream-phase" d={path} mask={`url(#${revealId})`} />

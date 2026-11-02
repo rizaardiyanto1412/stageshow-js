@@ -1,8 +1,7 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useReducedMotion } from '../../kit'
+import { reduced } from '../../kit'
 
 export type MorphStyle = 'real' | 'large' | 'circle' | 'arrow'
 
@@ -70,7 +69,7 @@ const path = (pts: Pt[]) => `M${pts.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed
 function Shape({ style }: { style: MorphStyle }) {
   const ref = useRef<SVGPathElement>(null)
   const now = useRef({ pts: SHAPES[style].pts, look: SHAPES[style].look })
-  const reduced = useReducedMotion()
+  const reduced = reduced()
   const initial = useRef(now.current)
   useLayoutEffect(() => {
     const el = ref.current

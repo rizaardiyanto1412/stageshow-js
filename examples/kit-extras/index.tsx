@@ -1,5 +1,5 @@
 import { Avatar, BrandMark, Chip, Expand, Icon, Menu, Meter, Stage, Swap, type Act, type IconName, type Rect } from '../../kit'
-import type { ReactNode } from 'react'
+import type { Child } from '../../kit'
 import '../parts/parts.css'
 import './extras.css'
 
@@ -58,7 +58,7 @@ async function script(a: Act<S>) {
   await a.wait(1000)
 }
 
-function Tile({ name, className, children }: { name: string; className?: string; children: ReactNode }) {
+function Tile({ name, className, children }: { name: string; className?: string; children: Child }) {
   return (
     <div className={`pt-tile${className ? ` ${className}` : ''}`}>
       <span className="pt-name">{name}</span>

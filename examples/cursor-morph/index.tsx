@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import { Segmented, Stage, type Act } from '../../kit'
 import { CursorMorph, type MorphStyle } from './cursor-morph'
 import './cursor-morph.css'

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { Style } from '../../kit'
 import { BrandMark, Avatar, Bar, Collapse, Stage, Window, type Act, type Layout } from '../../kit'
 import './docs.css'
 
@@ -312,7 +312,7 @@ function Drop({ w }: { w: number }) {
   )
 }
 
-function Sym({ n, size = 20, style }: { n: keyof typeof P; size?: number; style?: CSSProperties }) {
+function Sym({ n, size = 20, style }: { n: keyof typeof P; size?: number; style?: Style }) {
   return (
     <svg className="gd-sym" width={size} height={size} viewBox="0 -960 960 960" style={style} aria-hidden>
       <path d={P[n]} fill="currentColor" />
