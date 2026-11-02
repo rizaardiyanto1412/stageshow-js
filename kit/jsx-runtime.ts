@@ -38,8 +38,10 @@ export function html(child: Child): string {
   if (child === null || child === undefined || child === false || child === true) return ''
   if (child instanceof Html) return child.html
   if (Array.isArray(child)) {
+    // In a list of children, an empty slot holds its place, as React keeps it:
+    // the patcher then matches the siblings after it by position
     let out = ''
-    for (const c of child) out += html(c)
+    for (const c of child) out += c === null || c === undefined || c === false || c === true ? '<!---->' : html(c)
     return out
   }
   return escape(String(child))

@@ -128,7 +128,7 @@ export function Stage<S extends object>(props: StageProps<S>): Html {
     `<div class="ss-fit${className ? ` ${className}` : ''}" data-ss-stage="${index}" style="${styleText({ maxWidth: fill ? undefined : width, aspectRatio: `${width} / ${height}`, containerType: 'inline-size' })}">` +
       `<div class="ss-stage"${stageAttrs(base, look, still, true)} style="${rootStyle}">` +
       groundHtml(base) +
-      `<div class="ss-scene">${scene}</div>` +
+      scene +
       `<div class="ss-overlay"></div>` +
       `</div></div>`,
   )
@@ -182,7 +182,6 @@ function groundHtml(p: StageProps<object>) {
 export class StageRun<S extends object> {
   readonly fit: HTMLDivElement
   readonly root: HTMLDivElement
-  readonly scene: HTMLDivElement
   readonly overlay: HTMLDivElement
   private p: StageProps<S>
   private scope: string
@@ -219,7 +218,6 @@ export class StageRun<S extends object> {
   constructor(fit: HTMLDivElement, props: StageProps<S>, index: number) {
     this.fit = fit
     this.root = fit.querySelector<HTMLDivElement>(':scope > .ss-stage')!
-    this.scene = this.root.querySelector<HTMLDivElement>(':scope > .ss-scene')!
     this.overlay = this.root.querySelector<HTMLDivElement>(':scope > .ss-overlay')!
     this.p = props
     this.scope = `ss${index}`
@@ -266,8 +264,9 @@ export class StageRun<S extends object> {
     this.queued = false
     const look = lookOf(this.p as unknown as StageProps<object>, this.layout)
     const markup = within(look, this.still, this.scope, () => html(this.p.children(this.state, (name) => this.rects[name] ?? EMPTY, this.layout)))
-    patch(this.scene, markup)
-    syncBehaviors(this.scene, this.behaviors)
+    // The scene is the stage's children between the ground and the overlay
+    patch(this.root, markup, this.root.querySelector(':scope > .ss-ground'), this.overlay)
+    syncBehaviors(this.root, this.behaviors)
     this.renderOverlay()
     this.remeasure()
     // The cursor's kind follows what's under it after every change too, so
@@ -340,9 +339,10 @@ export class StageRun<S extends object> {
 
   // Fit: pick the layout from the container width, then scale its design
   // size into it.
+  private fitNow = () => {}
   private watchFit() {
     const fit = this.fit
-    const measure = () => {
+    const measure = (this.fitNow = () => {
       const { width, compact, fill } = this.p
       const w = fit.clientWidth
       // A host that sizes the stage by something other than the screen (a
@@ -366,7 +366,9 @@ export class StageRun<S extends object> {
       this.root.setAttribute('style', stageStyle(this.p as unknown as StageProps<object>, dW, dH, s, inset))
       this.root.dataset.layout = next
       if (switched && this.started) this.begin()
-    }
+      // A new size moves what rect() reports
+      else if (this.started) this.remeasure()
+    })
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(fit)
@@ -745,6 +747,18 @@ export class StageRun<S extends object> {
       this.auto = null
       this.cancelReset()
     }
+  }
+
+  /**
+   * New props from a render of the page around the stage (mount.ts): a design
+   * size taken from the slot, new children. The script keeps running, as a
+   * component keeps its state when its parent re-renders.
+   */
+  setProps(p: StageProps<S>) {
+    const was = this.p
+    this.p = p
+    if (was.width !== p.width || was.height !== p.height || was.compact?.width !== p.compact?.width || was.compact?.height !== p.compact?.height || was.compact?.below !== p.compact?.below || was.fill !== p.fill) this.fitNow()
+    this.render()
   }
 
   /** Stop everything and let go of the page. */

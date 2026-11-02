@@ -3,3 +3,4 @@ dist
 *.png
 !examples/**/*.png
 !kit/**/*.png
+playground/public

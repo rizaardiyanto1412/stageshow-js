@@ -448,10 +448,8 @@
 }
 
 @layer stageshow {
-  /* The scene and the layer over it (keycaps, the cursor) are each patched on
-     their own; neither draws a box, so the scene's parts are placed on the
-     stage exactly as if they were its own children */
-  .ss-scene,
+  /* The layer over the scene (keycaps, the cursor), patched on its own; it
+     draws no box, so its parts are placed on the stage itself */
   .ss-overlay {
     display: contents;
   }

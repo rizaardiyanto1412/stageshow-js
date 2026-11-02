@@ -1,4 +1,3 @@
-import morphdom from 'morphdom'
 import type { Fidelity, Layout, Palette, Theme } from './looks'
 
 // Rendering a scene: what a component can read while it renders (the look,
@@ -97,11 +96,12 @@ export function behavior(name: string, factory: BehaviorFactory) {
 }
 
 /** Attach, update and drop behaviors for the parts now in `root`. `attached` is the stage's own set, carried between calls. */
-export function syncBehaviors(root: Element, attached: Set<Element>) {
+export function syncBehaviors(root: Element, attached: Set<Element>, skip?: string) {
   const now = new Set<Element>()
   // Innermost first, as effects run: a part settles its own size before the
   // part around it measures (a bubble before the thread that glides it)
   Array.from(root.querySelectorAll<HTMLElement>('[data-ss-part]')).reverse().forEach((el) => {
+    if (skip && el.closest(skip)) return
     now.add(el)
     let b = live.get(el)
     if (!b) {
@@ -116,46 +116,105 @@ export function syncBehaviors(root: Element, attached: Set<Element>) {
   for (const el of now) attached.add(el)
 }
 
+/** Attach a behavior to an element directly, without a data-ss-part name: a live stage takes its element's renders this way. */
+export function attach(el: Element, b: Behavior) {
+  live.set(el, b)
+}
+
 export function dropBehavior(el: Element) {
   live.get(el)?.destroy?.()
   live.delete(el)
 }
 
 const KEY = 'data-ss-key'
+const keyOf = (n: Node) => (n.nodeType === 1 ? (n as Element).getAttribute(KEY) : null)
+// Nodes a behavior adds on its own (a fading copy, a ripple) aren't in any render: leave them
+const owned = (n: Node) => n.nodeType === 1 && (n as Element).hasAttribute('data-ss-own')
 
-/** Patch `target`'s children to match `markup`, keeping element identity where it can, so transitions run. */
-export function patch(target: Element, markup: string) {
+/**
+ * Patch the children of `target` (or the run of them between `after` and
+ * `before`) to match `markup`, keeping each node where it can, so its
+ * transitions run. Children match as React matches them: by key among
+ * siblings only, and otherwise by position and tag. An empty slot ({cond &&
+ * <x />}) renders as an empty comment, so the siblings after it keep their
+ * places when it fills.
+ */
+export function patch(target: Element, markup: string, after: Node | null = null, before: Node | null = null) {
   const next = target.cloneNode(false) as Element
   next.innerHTML = markup
-  morphdom(target, next, {
-    childrenOnly: true,
-    getNodeKey: (node) => (node instanceof Element ? (node.getAttribute(KEY) ?? (node.id || undefined)) : undefined),
-    onBeforeElUpdated(from, to) {
-      if (from.isEqualNode(to) && !kept.has(from)) return false
-      const k = kept.get(from)
-      if (k) {
-        for (const [name, value] of k.attrs) to.setAttribute(name, value)
-        if (k.styles.size) {
-          const style = (to as HTMLElement).style
-          for (const [property, value] of k.styles) style.setProperty(property, value)
-        }
-      }
-      if (live.get(from)?.morph?.(to) === false) {
-        syncAttributes(from, to)
-        return false
-      }
-      return true
-    },
-        // Nodes a behavior adds on its own (a fading copy, a ripple) aren't in any render: leave them
-    onBeforeNodeDiscarded: (node) => !(node instanceof Element && node.hasAttribute('data-ss-own')),
-  })
+  const from: Node[] = []
+  for (let n = after ? after.nextSibling : target.firstChild; n && n !== before; n = n.nextSibling) from.push(n)
+  children(target, from, Array.from(next.childNodes), before)
 }
 
-// Attributes for an element that patches its own children, which morphdom
-// then skips entirely
+// Match, update and place one parent's children
+function children(parent: Node, from: Node[], to: Node[], end: Node | null) {
+  const keyed = new Map<string, Node>()
+  const loose: Node[] = []
+  for (const n of from) {
+    if (owned(n)) continue
+    const k = keyOf(n)
+    if (k !== null) keyed.set(k, n)
+    else loose.push(n)
+  }
+  const used = new Set<Node>()
+  let at = 0
+  const placed = to.map((t) => {
+    const k = keyOf(t)
+    // Unkeyed: the same position among this parent's unkeyed children
+    const match = k !== null ? keyed.get(k) : loose[at++]
+    if (!match || used.has(match) || !same(match, t)) return t
+    used.add(match)
+    update(match, t)
+    return match
+  })
+  // In order, moving only what is out of place: a node taken out and put
+  // back would restart its transitions
+  let ref = firstLive(from[0] ?? null, end, parent)
+  for (const node of placed) {
+    if (node === ref) ref = firstLive(node.nextSibling, end, parent)
+    else parent.insertBefore(node, ref)
+  }
+  for (const n of from) if (!used.has(n) && !owned(n) && n.parentNode === parent) parent.removeChild(n)
+}
+
+// The next node at or after `n` (before `end`) that a render owns
+function firstLive(n: Node | null, end: Node | null, parent: Node): Node | null {
+  while (n && n !== end && owned(n)) n = n.nextSibling
+  return n && n !== end && n.parentNode === parent ? n : end
+}
+
+const same = (a: Node, b: Node) => a.nodeType === b.nodeType && (a.nodeType !== 1 || ((a as Element).tagName === (b as Element).tagName && (a as Element).namespaceURI === (b as Element).namespaceURI))
+
+function update(from: Node, to: Node) {
+  if (from.nodeType !== 1) {
+    if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue
+    return
+  }
+  const el = from as Element
+  const next = to as Element
+  if (!kept.has(el) && !live.has(el) && el.isEqualNode(next)) return
+  // The behavior sees the render first, then what the runtime keeps is laid over it
+  const keepChildren = live.get(el)?.morph?.(next) === false
+  const k = kept.get(el)
+  if (k) {
+    for (const [name, value] of k.attrs) next.setAttribute(name, value)
+    if (k.styles.size) {
+      const style = (next as HTMLElement).style
+      for (const [property, value] of k.styles) style.setProperty(property, value)
+    }
+  }
+  syncAttributes(el, next)
+  if (!keepChildren) children(el, Array.from(el.childNodes), Array.from(next.childNodes), null)
+}
+
 function syncAttributes(from: Element, to: Element) {
-  for (const { name, value } of Array.from(to.attributes)) if (from.getAttribute(name) !== value) from.setAttribute(name, value)
-  for (const { name } of Array.from(from.attributes)) if (!to.hasAttribute(name)) from.removeAttribute(name)
+  for (const a of Array.from(to.attributes)) {
+    if (from.getAttribute(a.name) === a.value) continue
+    if (a.namespaceURI) from.setAttributeNS(a.namespaceURI, a.name, a.value)
+    else from.setAttribute(a.name, a.value)
+  }
+  for (const a of Array.from(from.attributes)) if (!to.hasAttribute(a.name)) from.removeAttribute(a.name)
 }
 
 /** Whether a behavior should settle at once: its stage shows a still, or the viewer asked for reduced motion. */
