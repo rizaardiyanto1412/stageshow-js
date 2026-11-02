@@ -91,7 +91,8 @@ const options = {
       name: 'url-assets',
       setup: (b) =>
         b.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, (a) => {
-          if (a.path.includes('node_modules')) return undefined
+          // The kit can itself sit in a host's node_modules; other packages are left alone
+          if (a.path.includes('node_modules') && !a.path.startsWith(kit)) return undefined
           const text = readFileSync(a.path, 'utf8')
           if (!text.includes('import.meta.url')) return undefined
           const contents = text.replace(/new URL\((['"])(\.{1,2}\/[^'"]+)\1,\s*import\.meta\.url\)/g, (_, q, rel) => {
