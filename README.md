@@ -11,6 +11,16 @@ It's a port of [Stageshow](https://github.com/benjitaylor/skills/tree/main/stage
 by Benji Taylor. The skill's design rules, gold examples and filming checks are
 his; this port swaps the React runtime for plain JS and adds the export.
 
+## Install the skill
+
+```sh
+npx skills add rizaardiyanto1412/stageshow-js --skill stageshow-js
+```
+
+This adds the skill to your project's agents (Claude Code, Cursor, Codex and
+others). Run `npm install` in the installed skill's folder before using its
+playground, filming and export tools.
+
 ## How it works
 
 - You (or your agent) write a scene in TSX, the same way as upstream Stageshow.
