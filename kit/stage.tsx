@@ -121,9 +121,11 @@ export function Stage<S extends object>(props: StageProps<S>): Html {
   const state = still && poster ? poster : initial
   const look = lookOf(base, 'wide')
   const scene = within(look, still, `ss${index}`, () => html(props.children(state, () => EMPTY, 'wide')))
-  const rootStyle = stageStyle(base, width, height, 1, 0)
+  // Before the script runs, CSS alone fits the frame to its box: the box is a
+  // size container, and tan(atan2(box, design)) is their ratio as a number
+  const rootStyle = stageStyle(base, width, height, `min(1, tan(atan2(100cqw, ${width}px)))`, 0)
   return new Html(
-    `<div class="ss-fit${className ? ` ${className}` : ''}" data-ss-stage="${index}" style="${styleText({ maxWidth: fill ? undefined : width, aspectRatio: `${width} / ${height}` })}">` +
+    `<div class="ss-fit${className ? ` ${className}` : ''}" data-ss-stage="${index}" style="${styleText({ maxWidth: fill ? undefined : width, aspectRatio: `${width} / ${height}`, containerType: 'inline-size' })}">` +
       `<div class="ss-stage"${stageAttrs(base, look, still, true)} style="${rootStyle}">` +
       groundHtml(base) +
       `<div class="ss-scene">${scene}</div>` +
@@ -154,7 +156,7 @@ function stageAttrs(p: StageProps<object>, look: Look, still: boolean, placing: 
   return a.map(([k, v]) => (v ? ` ${k}="${v}"` : '')).join('')
 }
 
-function stageStyle(p: StageProps<object>, w: number, h: number, scale: number, inset: number) {
+function stageStyle(p: StageProps<object>, w: number, h: number, scale: number | string, inset: number) {
   const accent = p.accent
   return styleText({
     width: w,
@@ -224,6 +226,7 @@ export class StageRun<S extends object> {
     this.kind = props.cursor?.kind ?? 'pointer'
     this.state = props.initial ?? (NONE as S)
     this.fit.style.removeProperty('aspect-ratio')
+    this.fit.style.removeProperty('container-type')
     this.watchFit()
     this.watchMotion()
     const onSettled = () => this.remeasure()
